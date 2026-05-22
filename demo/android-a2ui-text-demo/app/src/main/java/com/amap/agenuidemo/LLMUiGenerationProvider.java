@@ -57,10 +57,22 @@ public class LLMUiGenerationProvider implements UiGenerationProvider {
 
     public static String deriveStreamUrl(String baseUrl) {
         if (baseUrl == null) return null;
-        if (baseUrl.endsWith("/generate-ui")) {
-            return baseUrl.substring(0, baseUrl.length() - "/generate-ui".length()) + "/generate-ui-stream";
+        String trimmed = baseUrl.trim();
+        while (trimmed.endsWith("/") && trimmed.length() > "http://x".length()) {
+            trimmed = trimmed.substring(0, trimmed.length() - 1);
         }
-        return baseUrl + "-stream";
+        if (trimmed.endsWith("/generate-ui")) {
+            return trimmed.substring(0, trimmed.length() - "/generate-ui".length()) + "/generate-ui-stream";
+        }
+        try {
+            URL url = new URL(trimmed);
+            String path = url.getPath();
+            if (path == null || path.isEmpty() || "/".equals(path)) {
+                return trimmed + "/generate-ui-stream";
+            }
+        } catch (Exception ignored) {
+        }
+        return trimmed + "-stream";
     }
 
     public static String buildRequestBodyJson(String userInput) throws Exception {
@@ -128,32 +140,7 @@ public class LLMUiGenerationProvider implements UiGenerationProvider {
     }
 
     private String[] parseResponse(String responseBody) throws Exception {
-        JSONObject json = new JSONObject(responseBody);
-
-        // Accept both {"messages": [...]} and direct array responses
-        JSONArray messagesArray;
-        if (json.has("messages")) {
-            messagesArray = json.getJSONArray("messages");
-        } else if (json.has("a2ui")) {
-            messagesArray = json.getJSONArray("a2ui");
-        } else {
-            throw new LLMException("Response missing 'messages' or 'a2ui' array", rawResponse);
-        }
-
-        String[] messages = new String[3];
-        for (int i = 0; i < 3; i++) {
-            if (i < messagesArray.length()) {
-                Object item = messagesArray.get(i);
-                if (item instanceof JSONObject) {
-                    messages[i] = ((JSONObject) item).toString();
-                } else {
-                    messages[i] = item.toString();
-                }
-            } else {
-                messages[i] = "{}";
-            }
-        }
-        return messages;
+        return A2uiMessageNormalizer.normalizeRawText(responseBody);
     }
 
     public static class LLMException extends RuntimeException {

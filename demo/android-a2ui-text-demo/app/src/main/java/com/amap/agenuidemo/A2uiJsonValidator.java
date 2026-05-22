@@ -31,51 +31,12 @@ public class A2uiJsonValidator {
                     Collections.singletonList("Raw text is null or empty"),
                     Collections.emptyList());
         }
-        String text = rawText.trim();
-        // Strip markdown fences
-        if (text.startsWith("```")) {
-            String[] lines = text.split("\n");
-            StringBuilder sb = new StringBuilder();
-            for (String line : lines) {
-                if (!line.trim().startsWith("```")) {
-                    sb.append(line).append("\n");
-                }
-            }
-            text = sb.toString().trim();
-        }
-        org.json.JSONArray messages;
         try {
-            messages = new org.json.JSONArray(text);
-        } catch (Exception e) {
-            // After SSE JsonArrayStripper, text may be {obj1}{obj2}{obj3} without
-            // array wrapper or commas. Try parsing as concatenated objects.
-            if (text.startsWith("{")) {
-                try {
-                    messages = parseConcatenatedObjectsAsArray(text);
-                } catch (Exception e2) {
-                    return new ValidationResult(false,
-                            Collections.singletonList("Failed to parse raw text as JSON array: " + e.getMessage()),
-                            Collections.emptyList());
-                }
-            } else {
-                return new ValidationResult(false,
-                        Collections.singletonList("Failed to parse raw text as JSON array: " + e.getMessage()),
-                        Collections.emptyList());
-            }
-        }
-        if (messages.length() < 2) {
-            return new ValidationResult(false,
-                    Collections.singletonList("Expected at least 2 messages in array, got " + messages.length()),
-                    Collections.emptyList());
-        }
-        try {
-            String createSurfaceJson = messages.getJSONObject(0).toString();
-            String updateComponentsJson = messages.getJSONObject(1).toString();
-            String updateDataModelJson = messages.length() >= 3 ? messages.getJSONObject(2).toString() : "{}";
-            return validate(createSurfaceJson, updateComponentsJson, updateDataModelJson);
+            String[] messages = A2uiMessageNormalizer.normalizeRawText(rawText);
+            return validate(messages[0], messages[1], messages[2]);
         } catch (Exception e) {
             return new ValidationResult(false,
-                    Collections.singletonList("Failed to extract messages from array: " + e.getMessage()),
+                    Collections.singletonList("Failed to normalize raw text: " + e.getMessage()),
                     Collections.emptyList());
         }
     }
@@ -85,7 +46,7 @@ public class A2uiJsonValidator {
         private final List<String> errors;
         private final List<String> warnings;
 
-        private ValidationResult(boolean valid, List<String> errors, List<String> warnings) {
+        public ValidationResult(boolean valid, List<String> errors, List<String> warnings) {
             this.valid = valid;
             this.errors = Collections.unmodifiableList(errors);
             this.warnings = Collections.unmodifiableList(warnings);
@@ -244,7 +205,7 @@ public class A2uiJsonValidator {
             errors.add("Duplicate component id: '" + dupId + "'");
         }
 
-        // Collect ids referenced as children/child
+        // Collect ids referenced as children/child/parent
         Set<String> referencedChildIds = new HashSet<>();
         // Track which ids are containers with children/child
         Set<String> containerIds = new HashSet<>();
@@ -257,21 +218,22 @@ public class A2uiJsonValidator {
                 if (!comp.has("id")) {
                     errors.add("Component at index " + i + " missing 'id' field");
                 }
-                if (!comp.has("component")) {
+                String componentType = getComponentType(comp);
+                if (componentType == null || componentType.isEmpty()) {
                     errors.add("Component at index " + i + " missing 'component' type field");
                 } else {
-                    String type = comp.getString("component");
-                    if (!VALID_COMPONENT_TYPES.contains(type)) {
+                    if (!VALID_COMPONENT_TYPES.contains(componentType)) {
                         errors.add("Component '" + comp.optString("id", "#" + i)
-                                + "' has unknown type '" + type + "' (not in catalog)");
+                                + "' has unknown type '" + componentType + "' (not in catalog)");
                     }
                 }
 
                 // Check children references
-                if (comp.has("children")) {
+                Object childrenValue = getComponentProperty(comp, "children");
+                if (childrenValue != null) {
                     containerIds.add(compId);
                     try {
-                        JSONArray children = comp.getJSONArray("children");
+                        JSONArray children = (JSONArray) childrenValue;
                         for (int j = 0; j < children.length(); j++) {
                             referencedChildIds.add(children.getString(j));
                         }
@@ -279,19 +241,26 @@ public class A2uiJsonValidator {
                         errors.add("Component '" + compId + "' has invalid 'children' array");
                     }
                 }
-                if (comp.has("child")) {
+                Object childValue = getComponentProperty(comp, "child");
+                if (childValue != null) {
                     containerIds.add(compId);
                     try {
-                        referencedChildIds.add(comp.getString("child"));
+                        referencedChildIds.add(String.valueOf(childValue));
                     } catch (Exception e) {
                         errors.add("Component '" + compId + "' has invalid 'child' value");
                     }
                 }
 
+                String parentId = comp.optString("parent", "");
+                if (!parentId.isEmpty()) {
+                    referencedChildIds.add(compId);
+                }
+
                 // Check action: only functionCall allowed
-                if (comp.has("action")) {
+                Object actionValue = getComponentProperty(comp, "action");
+                if (actionValue != null) {
                     try {
-                        JSONObject action = comp.getJSONObject("action");
+                        JSONObject action = (JSONObject) actionValue;
                         boolean hasFunctionCall = action.has("functionCall");
                         boolean hasEvent = action.has("event");
 
@@ -347,6 +316,28 @@ public class A2uiJsonValidator {
                 warnings.add("Root component id is '" + rootId + "'; recommended id is 'root'");
             }
         }
+    }
+
+    private static String getComponentType(JSONObject comp) {
+        String type = comp.optString("component", "");
+        if (type.isEmpty()) {
+            type = comp.optString("type", "");
+        }
+        if (type.isEmpty()) {
+            type = comp.optString("componentType", "");
+        }
+        return type;
+    }
+
+    private static Object getComponentProperty(JSONObject comp, String key) {
+        if (comp.has(key)) {
+            return comp.opt(key);
+        }
+        JSONObject properties = comp.optJSONObject("properties");
+        if (properties != null && properties.has(key)) {
+            return properties.opt(key);
+        }
+        return null;
     }
 
     public static JSONArray parseConcatenatedObjectsAsArray(String text) throws Exception {

@@ -61,7 +61,7 @@ public class A2uiJsonValidatorTest {
     public void validateFromRawText_invalidJson_returnsInvalid() {
         A2uiJsonValidator.ValidationResult vr = A2uiJsonValidator.validateFromRawText("not json");
         assertFalse(vr.isValid());
-        assertTrue(vr.getErrors().get(0).contains("parse raw text"));
+        assertTrue(vr.getErrors().get(0).contains("normalize raw text"));
     }
 
     @Test
@@ -70,7 +70,7 @@ public class A2uiJsonValidatorTest {
         arr.put(new JSONObject(validCreateSurface));
         A2uiJsonValidator.ValidationResult vr = A2uiJsonValidator.validateFromRawText(arr.toString());
         assertFalse(vr.isValid());
-        assertTrue(vr.getErrors().get(0).contains("at least 2"));
+        assertTrue(vr.getErrors().get(0).contains("missing updateComponents"));
     }
 
     @Test

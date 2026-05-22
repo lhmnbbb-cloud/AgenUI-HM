@@ -68,8 +68,11 @@ Available component types: Text, Image, Icon, Video, AudioPlayer, Row, Column, L
 
 Rules:
 - Each component MUST have "id" and "component" fields
-- Container components (Row, Column, List, Card, Tabs, Modal, Carousel) use "children" (array of child IDs) or "child" (single child ID)
-- Leaf components (Text, Image, Icon, Video, AudioPlayer, Button, TextField, CheckBox, ChoicePicker, Slider, DateTimeInput, RichText, Table, Web, Divider) have content fields like "text", "label", "placeholder"
+- Do NOT nest component objects inside "children" or "child"; define all components in the flat "components" array and reference children by id
+- Row, Column, List, Tabs, Modal, Carousel use "children" (array of child IDs)
+- Card and Button use "child" (single child ID)
+- Text uses "text"; Button label should be a child Text component, not a "text" field on Button
+- Leaf components (Text, Image, Icon, Video, AudioPlayer, TextField, CheckBox, ChoicePicker, Slider, DateTimeInput, RichText, Table, Web, Divider) have content fields like "text", "label", "placeholder"
 - Use "styles" object for styling (padding, gap, background-color, color, font-weight, text-align, border-radius, width, height, filter)
 - Button can have "action": {"functionCall": {"call": "toast", "args": {"value": "message"}}}
 - Return ONLY the JSON array, no markdown fences, no explanation
@@ -440,7 +443,30 @@ def parse_llm_response(text):
         lines = [l for l in lines if not l.strip().startswith("```")]
         text = "\n".join(lines).strip()
 
-    parsed = json.loads(text)
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError:
+        start = text.find("[")
+        end = text.rfind("]")
+        if start >= 0 and end > start:
+            parsed = json.loads(text[start:end + 1])
+        else:
+            start = text.find("{")
+            end = text.rfind("}")
+            if start >= 0 and end > start:
+                parsed = json.loads(text[start:end + 1])
+            else:
+                raise
+
+    if isinstance(parsed, dict):
+        if isinstance(parsed.get("messages"), list):
+            parsed = parsed["messages"]
+        elif isinstance(parsed.get("a2ui"), list):
+            parsed = parsed["a2ui"]
+        elif isinstance(parsed.get("components"), list):
+            parsed = parsed["components"]
+        else:
+            raise RuntimeError(f"Expected JSON array or messages/a2ui wrapper, got dict keys {list(parsed.keys())}")
 
     if not isinstance(parsed, list):
         raise RuntimeError(f"Expected JSON array, got {type(parsed).__name__}")

@@ -62,7 +62,8 @@ When `LLM_PROXY_TOKEN` is set, the Android app must send the same value in the `
 
 2. Proxy constructs a prompt with A2UI v0.9 system instructions and calls the LLM.
 
-3. LLM returns A2UI JSON array `[createSurface, updateComponents, updateDataModel]`.
+3. LLM should return A2UI JSON array `[createSurface, updateComponents, updateDataModel]`.
+   The proxy also accepts common wrappers such as `{"messages":[...]}` and `{"a2ui":[...]}`.
 
 4. Proxy validates and forwards to Android app:
    ```json
@@ -75,7 +76,7 @@ When `LLM_PROXY_TOKEN` is set, the Android app must send the same value in the `
    }
    ```
 
-5. Android app validates via `A2uiJsonValidator` before rendering.
+5. Android app normalizes via `A2uiMessageNormalizer`, then validates via `A2uiJsonValidator` before rendering.
 
 ### Streaming Endpoint: POST /generate-ui-stream
 
@@ -92,9 +93,9 @@ When the Android app has LLM provider + Stream ON, it uses the SSE endpoint inst
    data: [DONE]
    ```
 
-4. Android app calls `surfaceManager.beginTextStream()` on connect, `receiveTextChunk(delta)` for each event, and `endTextStream()` when `[DONE]` is received.
+4. Android app buffers the SSE text deltas for debug visibility. It does not send raw model token chunks directly into the SDK.
 
-5. After stream ends, the accumulated text is validated via `A2uiJsonValidator.validateFromRawText()`.
+5. After stream ends, the accumulated text is normalized via `A2uiMessageNormalizer.normalizeRawText()`, validated, then rendered through the normal three-message SDK path.
 
 SSE format:
 - `Content-Type: text/event-stream`

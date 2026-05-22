@@ -100,7 +100,10 @@ public class SSEClient {
                 }
 
                 if (line.startsWith("data:")) {
-                    String payload = line.substring(5).trim();
+                    String payload = line.substring(5);
+                    if (payload.startsWith(" ")) {
+                        payload = payload.substring(1);
+                    }
                     if (payload.isEmpty()) {
                         continue;
                     }

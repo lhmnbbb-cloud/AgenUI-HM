@@ -24,7 +24,6 @@ import com.amap.agenui.render.surface.ISurfaceManagerListener;
 import com.amap.agenui.render.surface.Surface;
 import com.amap.agenui.render.surface.SurfaceManager;
 
-import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.util.concurrent.ExecutorService;
@@ -310,7 +309,7 @@ public class TextDemoActivity extends AppCompatActivity {
             updateDebugInfo();
 
             // Generate
-            String[] messages = provider.generate(input);
+            String[] messages = A2uiMessageNormalizer.normalizeMessages(provider.generate(input));
             lastGeneratedMessages = messages;
 
             // Validate
@@ -391,7 +390,7 @@ public class TextDemoActivity extends AppCompatActivity {
 
         llmExecutor.execute(() -> {
             try {
-                String[] messages = llmProvider.generate(input);
+                String[] messages = A2uiMessageNormalizer.normalizeMessages(llmProvider.generate(input));
 
                 mainHandler.post(() -> {
                     lastGeneratedMessages = messages;
@@ -459,10 +458,18 @@ public class TextDemoActivity extends AppCompatActivity {
     }
 
     private void sendToSdk(String[] messages) {
-        // Normalize messages to ensure "version" field is present —
-        // the C++ SDK silently fails to process updateComponents without it
-        for (int i = 0; i < Math.min(2, messages.length); i++) {
-            messages[i] = ensureVersionField(messages[i]);
+        try {
+            messages = A2uiMessageNormalizer.normalizeMessages(messages);
+            lastGeneratedMessages = messages;
+        } catch (Exception e) {
+            renderStatus = "error";
+            lastError = "A2UI normalize failed before render: " + e.getMessage();
+            tvValidationBadge.setText("ERROR");
+            tvValidationBadge.setTextColor(0xFFCC0000);
+            setBusy(false);
+            updateDebugInfo();
+            addLog("Normalize before SDK failed: " + e.getMessage());
+            return;
         }
 
         surfaceManager.beginTextStream();
@@ -485,20 +492,6 @@ public class TextDemoActivity extends AppCompatActivity {
         addLog("endTextStream - render complete");
         updateDebugInfo();
         Toast.makeText(this, "UI 渲染完成", Toast.LENGTH_SHORT).show();
-    }
-
-    private String ensureVersionField(String json) {
-        try {
-            JSONObject obj = new JSONObject(json);
-            if (!obj.has("version")) {
-                obj.put("version", "v0.9");
-                addLog("Normalized: added missing 'version' field");
-                return obj.toString();
-            }
-        } catch (Exception e) {
-            addLog("ensureVersionField: parse failed for: " + json.substring(0, Math.min(40, json.length())));
-        }
-        return json;
     }
 
     private void streamToSdk(String[] messages) {
@@ -579,8 +572,7 @@ public class TextDemoActivity extends AppCompatActivity {
                 mainHandler.post(() -> {
                     sseStatus = "streaming";
                     renderStatus = "streaming";
-                    surfaceManager.beginTextStream();
-                    addLog("SSE connected, beginTextStream");
+                    addLog("SSE connected, buffering model output");
                     updateDebugInfo();
                 });
             }
@@ -588,7 +580,6 @@ public class TextDemoActivity extends AppCompatActivity {
             @Override
             public void onChunk(String delta, int chunkIndex, String preview) {
                 mainHandler.post(() -> {
-                    surfaceManager.receiveTextChunk(delta);
                     sseChunkCount = chunkIndex;
                     sseLastChunkPreview = preview;
                     sseAccumulatedText = sseClient.getAccumulatedText();
@@ -602,16 +593,25 @@ public class TextDemoActivity extends AppCompatActivity {
             @Override
             public void onComplete(String fullText) {
                 mainHandler.post(() -> {
-                    surfaceManager.endTextStream();
                     sseStatus = "complete";
                     sseAccumulatedText = fullText;
                     lastRawLlmOutput = fullText;
                     addLog("SSE complete, " + sseChunkCount + " chunks received");
 
-                    // Post-stream validation
-                    A2uiJsonValidator.ValidationResult vr =
-                            A2uiJsonValidator.validateFromRawText(fullText);
-                    if (!vr.isValid()) {
+                    String[] messages;
+                    A2uiJsonValidator.ValidationResult vr;
+                    try {
+                        messages = A2uiMessageNormalizer.normalizeRawText(fullText);
+                        lastGeneratedMessages = messages;
+                        vr = A2uiJsonValidator.validate(messages[0], messages[1], messages[2]);
+                    } catch (Exception e) {
+                        messages = null;
+                        vr = new A2uiJsonValidator.ValidationResult(false,
+                                java.util.Collections.singletonList("Normalize failed: " + e.getMessage()),
+                                java.util.Collections.emptyList());
+                    }
+
+                    if (!vr.isValid() || messages == null) {
                         renderStatus = "error";
                         lastError = vr.getFormattedReport();
                         tvValidationBadge.setText("FAIL");
@@ -623,11 +623,13 @@ public class TextDemoActivity extends AppCompatActivity {
                     } else {
                         tvValidationBadge.setText("PASS");
                         tvValidationBadge.setTextColor(0xFF008800);
-                        lastGeneratedMessages = parseMessagesFromRawText(fullText);
-                        renderStatus = "rendered";
                         if (!vr.getWarnings().isEmpty()) {
                             addLog("Validation warnings: " + vr.getWarnings().size());
                         }
+                        renderStatus = "streaming";
+                        updateDebugInfo();
+                        sendToSdk(messages);
+                        return;
                     }
 
                     setBusy(false);
@@ -638,7 +640,6 @@ public class TextDemoActivity extends AppCompatActivity {
             @Override
             public void onError(Exception e, String partialText) {
                 mainHandler.post(() -> {
-                    try { surfaceManager.endTextStream(); } catch (Exception ignored) {}
                     sseStatus = "error";
                     sseAccumulatedText = partialText;
                     lastRawLlmOutput = partialText;
@@ -662,56 +663,6 @@ public class TextDemoActivity extends AppCompatActivity {
         };
 
         llmExecutor.execute(() -> sseClient.connect(sseUrl, jsonBody, proxyToken, callback));
-    }
-
-    private String[] parseMessagesFromRawText(String rawText) {
-        String text = rawText.trim();
-        if (text.startsWith("```")) {
-            String[] lines = text.split("\n");
-            StringBuilder sb = new StringBuilder();
-            for (String line : lines) {
-                if (!line.trim().startsWith("```")) {
-                    sb.append(line).append("\n");
-                }
-            }
-            text = sb.toString().trim();
-        }
-        try {
-            JSONArray arr = new JSONArray(text);
-            String[] messages = new String[3];
-            for (int i = 0; i < 3; i++) {
-                if (i < arr.length()) {
-                    Object item = arr.get(i);
-                    messages[i] = item instanceof JSONObject
-                            ? ((JSONObject) item).toString() : item.toString();
-                } else {
-                    messages[i] = "{}";
-                }
-            }
-            return messages;
-        } catch (Exception e) {
-            // After SSE JsonArrayStripper, text may be {obj1}{obj2}{obj3} without [ ] wrapper.
-            // Only try parsing as concatenated objects if text starts with '{'.
-            if (text.startsWith("{")) {
-                try {
-                    JSONArray arr = A2uiJsonValidator.parseConcatenatedObjectsAsArray(text);
-                    String[] messages = new String[3];
-                    for (int i = 0; i < 3; i++) {
-                        if (i < arr.length()) {
-                            Object item = arr.get(i);
-                            messages[i] = item instanceof JSONObject
-                                    ? ((JSONObject) item).toString() : item.toString();
-                        } else {
-                            messages[i] = "{}";
-                        }
-                    }
-                    return messages;
-                } catch (Exception e2) {
-                    return new String[]{"{}", "{}", "{}"};
-                }
-            }
-            return new String[]{"{}", "{}", "{}"};
-        }
     }
 
     private void toggleDebug() {

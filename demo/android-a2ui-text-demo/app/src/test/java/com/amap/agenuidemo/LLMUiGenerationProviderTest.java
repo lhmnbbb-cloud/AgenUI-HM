@@ -36,7 +36,13 @@ public class LLMUiGenerationProviderTest {
     @Test
     public void deriveStreamUrl_noPath_appendsStream() {
         String result = LLMUiGenerationProvider.deriveStreamUrl("http://host:8787");
-        assertEquals("http://host:8787-stream", result);
+        assertEquals("http://host:8787/generate-ui-stream", result);
+    }
+
+    @Test
+    public void deriveStreamUrl_noPathWithTrailingSlash_appendsStreamEndpoint() {
+        String result = LLMUiGenerationProvider.deriveStreamUrl("http://host:8787/");
+        assertEquals("http://host:8787/generate-ui-stream", result);
     }
 
     // --- buildRequestBodyJson ---
