@@ -137,13 +137,21 @@
         android:background="#E0E0E0" />
 
     <!-- AGenUI render area -->
-    <FrameLayout
-        android:id="@+id/renderArea"
+    <ScrollView
+        android:id="@+id/renderScrollView"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:background="#F5F5F5"
-        android:padding="8dp" />
+        android:fillViewport="true"
+        android:background="#F5F5F5">
+
+        <FrameLayout
+            android:id="@+id/renderArea"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="#F5F5F5"
+            android:padding="8dp" />
+    </ScrollView>
 
     <!-- Divider -->
     <View

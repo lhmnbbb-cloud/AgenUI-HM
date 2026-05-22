@@ -1,5 +1,6 @@
 package com.amap.agenuidemo;
 
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -32,6 +33,9 @@ import java.util.concurrent.Executors;
 public class TextDemoActivity extends AppCompatActivity {
 
     private static final String TAG = "A2UITextDemo";
+    private static final String PREFS_NAME = "a2ui_demo_prefs";
+    private static final String PREF_KEY_LLM_URL = "llm_url";
+    private static final String PREF_KEY_PROXY_TOKEN = "proxy_token";
 
     // UI - existing
     private EditText etInput;
@@ -129,6 +133,13 @@ public class TextDemoActivity extends AppCompatActivity {
         switchStreaming = findViewById(R.id.switchStreaming);
         etLlmUrl = findViewById(R.id.etLlmUrl);
         etProxyToken = findViewById(R.id.etProxyToken);
+
+        // Restore persisted settings
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        String savedUrl = prefs.getString(PREF_KEY_LLM_URL, null);
+        if (savedUrl != null) etLlmUrl.setText(savedUrl);
+        String savedToken = prefs.getString(PREF_KEY_PROXY_TOKEN, null);
+        if (savedToken != null) etProxyToken.setText(savedToken);
 
         debugHeader = findViewById(R.id.debugHeader);
         tvDebugToggle = findViewById(R.id.tvDebugToggle);
@@ -374,7 +385,12 @@ public class TextDemoActivity extends AppCompatActivity {
         }
 
         llmProvider.setEndpointUrl(url);
-        llmProvider.setProxyToken(etProxyToken.getText().toString().trim());
+        String proxyToken = etProxyToken.getText().toString().trim();
+        llmProvider.setProxyToken(proxyToken);
+        getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit()
+                .putString(PREF_KEY_LLM_URL, url)
+                .putString(PREF_KEY_PROXY_TOKEN, proxyToken)
+                .apply();
 
         setBusy(true);
         lastUserInput = input;
@@ -533,6 +549,10 @@ public class TextDemoActivity extends AppCompatActivity {
     private void handleLlmSseGenerate(String input, String baseUrl) {
         String sseUrl = LLMUiGenerationProvider.deriveStreamUrl(baseUrl);
         String proxyToken = etProxyToken.getText().toString().trim();
+        getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit()
+                .putString(PREF_KEY_LLM_URL, baseUrl)
+                .putString(PREF_KEY_PROXY_TOKEN, proxyToken)
+                .apply();
 
         setBusy(true);
         lastUserInput = input;

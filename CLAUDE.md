@@ -186,6 +186,30 @@ Android Function Call 参考：
 - 构建脚本中的发布逻辑
 - `agenui_catalog.json` 的大范围结构
 
+## Android A2UI LLM Rendering Lessons
+
+来源：778d042..696445a 修复，解决"LLM JSON 返回了但不渲染"问题。
+
+### LLM 输出必须经过归一化
+
+真实 LLM 输出几乎不可能精确匹配 A2UI 协议结构（`type` vs `component`、`content` vs `text`、内联嵌套 children、缺少 version/surfaceId）。
+
+778d042..696445a 修复学到的规则：
+
+- **LLM 输出进入 SDK 前必须经过 `A2uiMessageNormalizer`**（`demo/android-a2ui-text-demo/app/src/main/java/com/amap/agenuidemo/A2uiMessageNormalizer.java`）。所有 Provider 类型（Mock/Fixture/LLM）都要经过归一化，不经归一化不进 SDK。
+- **`A2uiJsonValidator` 只负责校验，不负责猜测真实模型格式**。归一化和校验职责分离：Normalizer 做宽容归一化，Validator 做严格校验。Validator 的 ERROR 条件必须与 C++ SDK 实际硬性要求一致（如 `version` 是 SDK 硬要求，必须报 ERROR 不能报 WARNING）。
+- **TextDemoActivity 中 LLM 两条链路**：
+  - 非 SSE：`provider.generate()` → `A2uiMessageNormalizer.normalizeMessages()` → validate → `surfaceManager.sendToSdk()`
+  - SSE：`SSEClient` 缓冲全部 chunk → `onComplete` 时 `A2uiMessageNormalizer.normalizeRawText(fullText)` → validate → `sendToSdk()`
+- **当前 SSE 是"真实 SSE 传输 + 完整归一化后渲染"，不是 token 级实时渲染**。SSE 不调用 `beginTextStream/receiveTextChunk/endTextStream`，而是 buffer-all → normalize → batch render。
+- **真正 token 级渲染必须做协议感知流解析**，不能直接把模型 delta 喂给 `receiveTextChunk`。原因：C++ `ProtocolStreamExtractor::startStreamingComponents()` 要求完整协议 JSON；LLM chunk 是任意文本碎片，无法被协议解析器单独处理；归一化需要完整上下文（如 `ensureSingleRoot()` 需看到所有组件）。
+- **SDK 静默失败是最危险的调试盲区**。`startStreamingComponents()` 缺 `version` 返回 false 无回调；`SurfaceCoordinator::updateComponents()` surface 不存在直接丢弃。修改 SDK 错误可观测性需要改 C++ core，当前只能在 Java 层做好归一化兜底。
+- **每次改动后至少运行**：
+  ```bash
+  .\gradlew.bat testDebugUnitTest assembleDebug
+  python .\tools\llm-proxy\test_sse_endpoint.py
+  ```
+
 ## 推荐工作方式
 
 每次任务先回答：
