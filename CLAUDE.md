@@ -1,0 +1,199 @@
+# CLAUDE.md
+
+## 项目定位
+
+AGenUI 是一个 A2UI 原生渲染 SDK，用于把 LLM 生成的 A2UI v0.9 JSON 协议流渲染成 iOS / Android / HarmonyOS 原生 UI。
+
+当前重点研究和二次开发方向是 Android / 定制 ROM 系统应用接入：从对话式大模型能力升级为可展示、可交互的动态 UI 能力。
+
+## 优先使用的 Skills
+
+如果当前 Claude Code 环境中存在这些 skills，按场景优先使用：
+
+- `a2ui-generation`: 生成或校验 A2UI `createSurface` / `updateComponents` / `updateDataModel` 协议消息。
+- `android-project-scan`: 开始 Android 相关任务前扫描项目结构、依赖和入口。
+- `android-build-debug`: Android SDK 或 Playground 修改后做构建/调试验证。
+- `android-change-risk-review`: 修改前后评估 Android 变更风险。
+- `android-system-app-review`: 涉及系统应用、ROM 能力、权限、Function Call 时必须使用。
+- `adb-logcat-anr`: 调试设备运行、崩溃、ANR、logcat 问题。
+- `android-task-retrospective`: 较大 Android 任务结束前复盘验证项和遗留风险。
+
+## 优先阅读路径
+
+开始任何修改前，先阅读：
+
+1. `README.zh-CN.md`
+2. `docs/QuickStart.zh-CN.md`
+3. `docs/API.zh-CN.md`
+4. `platforms/android/src/main/java/com/amap/agenui/AGenUI.java`
+5. `platforms/android/src/main/java/com/amap/agenui/render/surface/SurfaceManager.java`
+6. `platforms/android/src/main/java/com/amap/agenui/render/surface/NativeEventBridge.java`
+7. `platforms/android/src/main/java/com/amap/agenui/render/component/ComponentRegistry.java`
+8. `playground/android/app/src/main/java/com/amap/agenuiplayground/A2UIPlaygroundActivity.java`
+9. `core/src/stream/agenui_streaming_content_parser.cpp`
+10. `core/src/surface/agenui_surface_coordinator.cpp`
+
+## 架构心智模型
+
+数据主链路：
+
+LLM / Agent 输出 A2UI JSON
+-> `SurfaceManager.beginTextStream / receiveTextChunk / endTextStream`
+-> C++ `StreamingContentParser`
+-> `ProtocolStreamExtractor`
+-> `SurfaceCoordinator`
+-> `Surface`
+-> `DataModel + ComponentManager + VirtualDOM`
+-> 平台桥接层
+-> Android 原生 View 组件
+
+Android 侧核心对象：
+
+- `AGenUI`: 全局入口，加载 native so，初始化 engine，注册组件、函数、图片加载器。
+- `SurfaceManager`: 一路独立流式会话，接收 A2UI JSON，管理多个 Surface。
+- `Surface`: 一个独立 UI 渲染单元，持有根 `FrameLayout` 和组件树。
+- `NativeEventBridge`: C++ 事件到 Android 组件树的桥。
+- `ComponentRegistry`: 内置/自定义组件工厂注册中心。
+- `A2UIComponent`: Android 组件基类，处理 View 生命周期、样式、Action、状态同步。
+
+## 当前开发重点
+
+优先做 Android 方向。除非任务明确要求，不要同时改 iOS、HarmonyOS 和 C++ core。
+
+推荐优先级：
+
+1. Android Playground 中验证协议和渲染效果。
+2. Android SDK 层扩展组件、事件、Function Call。
+3. A2UI JSON 示例和 catalog 约束。
+4. 最后才考虑修改 C++ core 的协议解析、DataModel、VirtualDOM。
+
+## 修改原则
+
+- 不做无关重构。
+- 不统一格式化整个仓库。
+- 不修改生成产物、构建产物或 IDE 私有文件。
+- 修改跨平台 core 时，必须说明 Android / iOS / HarmonyOS 影响面。
+- Android 系统应用接入场景下，Function Call 必须考虑权限、白名单、参数校验和敏感能力隔离。
+- LLM 输出不能直接驱动任意系统能力，只能通过受控组件和受控函数调用。
+
+## Android 构建方式
+
+SDK AAR：
+
+```bash
+./scripts/android/build.sh
+```
+
+Debug AAR：
+
+```bash
+./scripts/android/build.sh --debug
+```
+
+发布到本地 Maven：
+
+```bash
+./scripts/android/build.sh --publish-local
+```
+
+Android Playground：
+
+用 Android Studio 打开：
+
+```text
+playground/android/
+```
+
+Playground 依赖模式由：
+
+```text
+playground/android/gradle.properties
+```
+
+中的：
+
+```properties
+agenui.sdk.source=true
+```
+
+控制。
+
+## 测试现状
+
+当前 Android / iOS 基本没有有效单元测试目录。HarmonyOS 只有模板 Hypium 测试。
+
+因此每次修改后至少做：
+
+- Android SDK 构建验证。
+- Android Playground 手动验证关键 JSON story。
+- 对协议解析、流式分片、Surface 生命周期、Function Call 增加必要测试或最小复现说明。
+
+## A2UI 协议注意事项
+
+核心协议消息包括：
+
+- `createSurface`
+- `updateComponents`
+- `updateDataModel`
+- `appendDataModel`
+- `deleteSurface`
+
+参考：
+
+- `agenui_catalog.json`
+- `playground/resource/stories/A2UI Show/*/updateComponents.json`
+- `skills/a2ui-generation/`
+
+模型输出 UI 时应优先受 `agenui_catalog.json` 约束，不要让模型直接生成 Android 代码。
+
+## 自定义组件开发路线
+
+Android 自定义组件优先参考：
+
+- `playground/android/app/src/main/java/com/amap/agenuiplayground/component/factory/MarkdownComponentFactory.java`
+- `playground/android/app/src/main/java/com/amap/agenuiplayground/component/impl/MarkdownComponent.java`
+- `playground/android/app/src/main/java/com/amap/agenuiplayground/component/factory/LottieComponentFactory.java`
+- `playground/android/app/src/main/java/com/amap/agenuiplayground/component/impl/LottieComponent.java`
+
+组件注册位置参考：
+
+- `playground/android/app/src/main/java/com/amap/agenuiplayground/A2UIPlaygroundActivity.java`
+
+## Function Call 开发路线
+
+Android Function Call 参考：
+
+- `playground/android/app/src/main/java/com/amap/agenuiplayground/function/ToastFunction.java`
+- `platforms/android/src/main/java/com/amap/agenui/function/IFunction.java`
+- `platforms/android/src/main/java/com/amap/agenui/function/FunctionResult.java`
+
+系统应用二次开发时，Function Call 必须做能力分级：
+
+- 只读查询能力
+- 可逆设置能力
+- 高风险系统能力
+
+高风险能力默认不要开放给模型直调。
+
+## 不要轻易改的区域
+
+除非任务明确要求，不要轻易改：
+
+- `core/src/third_party/`
+- `core/src/jni/`
+- `platforms/ios/`
+- `platforms/harmony/`
+- 构建脚本中的发布逻辑
+- `agenui_catalog.json` 的大范围结构
+
+## 推荐工作方式
+
+每次任务先回答：
+
+1. 目标是什么？
+2. 影响 Android SDK、Playground、core 哪几层？
+3. 是否需要改 A2UI 协议或 catalog？
+4. 是否涉及 Function Call / 系统权限？
+5. 如何验证？
+
+然后再编码。

@@ -35,7 +35,7 @@ android {
                 cppFlags "-std=c++17"
                 abiFilters 'arm64-v8a'
                 arguments "-DANDROID_STL=c++_static",
-                          "-DAGENUI_REPO_ROOT=${rootProject.projectDir.parentFile.parentFile.absolutePath}"
+                          "-DAGENUI_REPO_ROOT=${rootProject.projectDir.parentFile.parentFile.absolutePath.replace('\\', '/')}"
             }
         }
     }
@@ -65,7 +65,7 @@ android {
     externalNativeBuild {
         cmake {
             path "src/main/cpp/CMakeLists.txt"
-            version "3.18.1"
+            version "3.22.1"
         }
     }
 

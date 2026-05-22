@@ -1,0 +1,62 @@
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "fixture_info",
+      "catalogId": "https://a2ui.org/specification/v0_9/standard_catalog.json"
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "fixture_info",
+      "components": [
+        {
+          "id": "root",
+          "component": "Column",
+          "children": ["info-card"],
+          "align": "stretch",
+          "styles": {
+            "padding": "20px",
+            "gap": "16px",
+            "background-color": "#F5F5F5"
+          }
+        },
+        {
+          "id": "info-card",
+          "component": "Card",
+          "child": "info-content",
+          "styles": {
+            "width": "auto",
+            "height": "auto",
+            "padding": "24px",
+            "border-radius": "16px",
+            "background-color": "#FFFFFF",
+            "filter": "drop-shadow(0px 6px 24px 0px rgba(0, 0, 0, 0.08))"
+          }
+        },
+        {
+          "id": "info-content",
+          "component": "Column",
+          "children": ["info-title", "info-body"],
+          "align": "stretch"
+        },
+        {
+          "id": "info-title",
+          "component": "Text",
+          "text": "A2UI 信息卡片",
+          "variant": "h2",
+          "styles": { "text-align": "left", "font-weight": "bold" }
+        },
+        {
+          "id": "info-body",
+          "component": "Text",
+          "text": "这是一条由 A2UI 协议生成的信息卡片。选择不同 Fixture 可查看不同 UI 效果。",
+          "variant": "body",
+          "styles": { "text-align": "left", "color": "#000000E6" }
+        }
+      ]
+    }
+  },
+  {}
+]

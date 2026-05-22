@@ -1,0 +1,76 @@
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "fixture_list",
+      "catalogId": "https://a2ui.org/specification/v0_9/standard_catalog.json"
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "fixture_list",
+      "components": [
+        {
+          "id": "root",
+          "component": "Column",
+          "children": ["list-title", "demo-list"],
+          "align": "stretch",
+          "styles": {
+            "padding": "20px",
+            "gap": "16px",
+            "background-color": "#F5F5F5"
+          }
+        },
+        {
+          "id": "list-title",
+          "component": "Text",
+          "text": "功能列表",
+          "variant": "h2"
+        },
+        {
+          "id": "demo-list",
+          "component": "List",
+          "children": ["li1", "li2", "li3", "li4", "li5"],
+          "align": "stretch"
+        },
+        {
+          "id": "li1",
+          "component": "Text",
+          "text": "实时天气查询",
+          "variant": "body",
+          "styles": { "padding": "12px 16px" }
+        },
+        {
+          "id": "li2",
+          "component": "Text",
+          "text": "智能导航规划",
+          "variant": "body",
+          "styles": { "padding": "12px 16px" }
+        },
+        {
+          "id": "li3",
+          "component": "Text",
+          "text": "语音交互控制",
+          "variant": "body",
+          "styles": { "padding": "12px 16px" }
+        },
+        {
+          "id": "li4",
+          "component": "Text",
+          "text": "个性化推荐",
+          "variant": "body",
+          "styles": { "padding": "12px 16px" }
+        },
+        {
+          "id": "li5",
+          "component": "Text",
+          "text": "系统状态监控",
+          "variant": "body",
+          "styles": { "padding": "12px 16px" }
+        }
+      ]
+    }
+  },
+  {}
+]

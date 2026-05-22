@@ -1,0 +1,23 @@
+# Built files
+.gradle/
+build/
+app/build/
+*.apk
+*.aab
+
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+.DS_Store
+
+# Local config
+local.properties
+
+# Python
+tools/llm-proxy/__pycache__/
+tools/llm-proxy/*.pyc
+
+# OS
+Thumbs.db
