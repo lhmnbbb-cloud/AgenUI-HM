@@ -1,7 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:fillViewport="true"
+    android:background="#F5F5F5">
+
+<LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
     android:orientation="vertical"
     android:background="#F5F5F5">
 
@@ -137,21 +143,13 @@
         android:background="#E0E0E0" />
 
     <!-- AGenUI render area -->
-    <ScrollView
-        android:id="@+id/renderScrollView"
+    <FrameLayout
+        android:id="@+id/renderArea"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:fillViewport="true"
-        android:background="#F5F5F5">
-
-        <FrameLayout
-            android:id="@+id/renderArea"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:background="#F5F5F5"
-            android:padding="8dp" />
-    </ScrollView>
+        android:layout_height="wrap_content"
+        android:minHeight="300dp"
+        android:background="#F5F5F5"
+        android:padding="8dp" />
 
     <!-- Divider -->
     <View
@@ -207,113 +205,136 @@
         </LinearLayout>
 
         <!-- Debug content (collapsible) -->
-        <ScrollView
-            android:id="@+id/debugScrollView"
+        <LinearLayout
+            android:id="@+id/debugContent"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:visibility="visible"
-            android:maxHeight="200dp">
+            android:orientation="vertical"
+            android:padding="8dp"
+            android:visibility="visible">
 
+            <!-- Provider & Input row -->
             <LinearLayout
-                android:id="@+id/debugContent"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="8dp">
+                android:orientation="horizontal">
 
-                <!-- Provider & Input row -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal">
-
-                    <TextView
-                        android:id="@+id/tvDebugProvider"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="Provider: Mock"
-                        android:textSize="11sp"
-                        android:textColor="#444444" />
-
-                    <TextView
-                        android:id="@+id/tvDebugInput"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="Input: -"
-                        android:textSize="11sp"
-                        android:textColor="#444444" />
-                </LinearLayout>
-
-                <!-- Render status -->
                 <TextView
-                    android:id="@+id/tvDebugRenderStatus"
-                    android:layout_width="match_parent"
+                    android:id="@+id/tvDebugProvider"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:text="Render: idle"
+                    android:layout_weight="1"
+                    android:text="Provider: Mock"
                     android:textSize="11sp"
-                    android:textColor="#444444"
-                    android:paddingTop="2dp"
-                    android:paddingBottom="4dp" />
+                    android:textColor="#444444" />
 
-                <!-- SSE debug views (visible only for LLM + Stream) -->
                 <TextView
-                    android:id="@+id/tvDebugSseStatus"
-                    android:layout_width="match_parent"
+                    android:id="@+id/tvDebugInput"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Input: -"
                     android:textSize="11sp"
-                    android:textColor="#6200EE"
-                    android:visibility="gone"
-                    android:paddingBottom="2dp" />
-
-                <TextView
-                    android:id="@+id/tvDebugSseLastChunk"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:textSize="10sp"
-                    android:textColor="#666666"
-                    android:fontFamily="monospace"
-                    android:visibility="gone"
-                    android:paddingBottom="2dp" />
-
-                <TextView
-                    android:id="@+id/tvDebugSseAccumulated"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:textSize="10sp"
-                    android:textColor="#333333"
-                    android:fontFamily="monospace"
-                    android:background="#FAFAFA"
-                    android:padding="4dp"
-                    android:maxLines="3"
-                    android:ellipsize="end"
-                    android:visibility="gone" />
-
-                <!-- Raw JSON -->
-                <TextView
-                    android:id="@+id/tvDebugRawJson"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:textSize="10sp"
-                    android:textColor="#333333"
-                    android:fontFamily="monospace"
-                    android:background="#FAFAFA"
-                    android:padding="6dp"
-                    android:maxLines="15"
-                    android:ellipsize="end" />
-
-                <!-- Error area -->
-                <TextView
-                    android:id="@+id/tvDebugErrors"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:textSize="11sp"
-                    android:textColor="#CC0000"
-                    android:visibility="gone"
-                    android:paddingTop="4dp" />
+                    android:textColor="#444444" />
             </LinearLayout>
-        </ScrollView>
+
+            <!-- Render status -->
+            <TextView
+                android:id="@+id/tvDebugRenderStatus"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Render: idle"
+                android:textSize="11sp"
+                android:textColor="#444444"
+                android:paddingTop="2dp"
+                android:paddingBottom="4dp" />
+
+            <!-- SSE debug views (visible only for LLM + Stream) -->
+            <TextView
+                android:id="@+id/tvDebugSseStatus"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="11sp"
+                android:textColor="#6200EE"
+                android:visibility="gone"
+                android:paddingBottom="2dp" />
+
+            <TextView
+                android:id="@+id/tvDebugSseLastChunk"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="10sp"
+                android:textColor="#666666"
+                android:fontFamily="monospace"
+                android:visibility="gone"
+                android:paddingBottom="2dp" />
+
+            <TextView
+                android:id="@+id/tvDebugSseAccumulated"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="10sp"
+                android:textColor="#333333"
+                android:fontFamily="monospace"
+                android:background="#FAFAFA"
+                android:padding="4dp"
+                android:maxLines="3"
+                android:ellipsize="end"
+                android:visibility="gone" />
+
+            <!-- Raw JSON -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingBottom="2dp">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="JSON"
+                    android:textSize="11sp"
+                    android:textColor="#444444" />
+
+                <Button
+                    android:id="@+id/btnCopyJson"
+                    android:layout_width="wrap_content"
+                    android:layout_height="36dp"
+                    android:text="复制"
+                    android:textSize="14sp"
+                    android:backgroundTint="#6200EE"
+                    android:textColor="#FFFFFF"
+                    android:minWidth="64dp"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp" />
+            </LinearLayout>
+
+            <EditText
+                android:id="@+id/tvDebugRawJson"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="10sp"
+                android:textColor="#333333"
+                android:fontFamily="monospace"
+                android:background="#FAFAFA"
+                android:padding="6dp"
+                android:maxLines="30"
+                android:inputType="none"
+                android:textIsSelectable="true"
+                android:importantForAutofill="no" />
+
+            <!-- Error area -->
+            <TextView
+                android:id="@+id/tvDebugErrors"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="11sp"
+                android:textColor="#CC0000"
+                android:visibility="gone"
+                android:paddingTop="4dp" />
+        </LinearLayout>
     </LinearLayout>
 
     <!-- Divider -->
@@ -326,7 +347,7 @@
     <LinearLayout
         android:id="@+id/logsContainer"
         android:layout_width="match_parent"
-        android:layout_height="160dp"
+        android:layout_height="wrap_content"
         android:orientation="vertical"
         android:background="#FFFFFF">
 
@@ -359,27 +380,23 @@
                 android:textColor="#666666" />
         </LinearLayout>
 
-        <ScrollView
-            android:id="@+id/logsScrollView"
+        <LinearLayout
+            android:id="@+id/logsContent"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="8dp"
             android:visibility="gone">
 
-            <LinearLayout
-                android:id="@+id/logsContent"
+            <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="8dp">
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="No logs yet"
-                    android:textSize="11sp"
-                    android:textColor="#999999" />
-            </LinearLayout>
-        </ScrollView>
+                android:text="No logs yet"
+                android:textSize="11sp"
+                android:textColor="#999999" />
+        </LinearLayout>
     </LinearLayout>
 
 </LinearLayout>
+
+</ScrollView>

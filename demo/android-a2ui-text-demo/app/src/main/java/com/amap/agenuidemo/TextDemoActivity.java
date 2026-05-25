@@ -12,7 +12,6 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
-import android.widget.ScrollView;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -44,7 +43,6 @@ public class TextDemoActivity extends AppCompatActivity {
     private TextView tvSdkVersion;
     private LinearLayout logsHeader;
     private TextView tvLogsToggle;
-    private ScrollView logsScrollView;
     private LinearLayout logsContent;
     private boolean logsExpanded = false;
 
@@ -58,11 +56,12 @@ public class TextDemoActivity extends AppCompatActivity {
     // UI - debug
     private LinearLayout debugHeader;
     private TextView tvDebugToggle;
-    private ScrollView debugScrollView;
+    private LinearLayout debugContent;
     private TextView tvDebugProvider;
     private TextView tvDebugInput;
     private TextView tvDebugRenderStatus;
-    private TextView tvDebugRawJson;
+    private EditText tvDebugRawJson;
+    private Button btnCopyJson;
     private TextView tvDebugErrors;
     private TextView tvValidationBadge;
     private TextView tvDebugSseStatus;
@@ -98,6 +97,7 @@ public class TextDemoActivity extends AppCompatActivity {
     private String renderStatus = "idle";
     private String lastError = "";
     private String lastRawLlmOutput = "";
+    private String lastSurfaceId = null;
 
     // LLM async
     private final ExecutorService llmExecutor = Executors.newSingleThreadExecutor();
@@ -125,7 +125,6 @@ public class TextDemoActivity extends AppCompatActivity {
         tvSdkVersion = findViewById(R.id.tvSdkVersion);
         logsHeader = findViewById(R.id.logsHeader);
         tvLogsToggle = findViewById(R.id.tvLogsToggle);
-        logsScrollView = findViewById(R.id.logsScrollView);
         logsContent = findViewById(R.id.logsContent);
 
         spinnerProvider = findViewById(R.id.spinnerProvider);
@@ -143,11 +142,35 @@ public class TextDemoActivity extends AppCompatActivity {
 
         debugHeader = findViewById(R.id.debugHeader);
         tvDebugToggle = findViewById(R.id.tvDebugToggle);
-        debugScrollView = findViewById(R.id.debugScrollView);
+        debugContent = findViewById(R.id.debugContent);
         tvDebugProvider = findViewById(R.id.tvDebugProvider);
         tvDebugInput = findViewById(R.id.tvDebugInput);
         tvDebugRenderStatus = findViewById(R.id.tvDebugRenderStatus);
         tvDebugRawJson = findViewById(R.id.tvDebugRawJson);
+        btnCopyJson = findViewById(R.id.btnCopyJson);
+        btnCopyJson.setOnClickListener(v -> {
+            String json = tvDebugRawJson.getText().toString();
+            // Copy to clipboard
+            android.content.ClipboardManager clipboard = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+            android.content.ClipData clip = android.content.ClipData.newPlainText("A2UI JSON", json);
+            clipboard.setPrimaryClip(clip);
+            // Save to file with timestamp
+            try {
+                java.io.File dir = getExternalFilesDir(null);
+                if (dir != null) {
+                    String timestamp = new java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US).format(new java.util.Date());
+                    java.io.File file = new java.io.File(dir, "a2ui_" + timestamp + ".json");
+                    java.io.FileWriter writer = new java.io.FileWriter(file);
+                    writer.write(json);
+                    writer.close();
+                    Toast.makeText(this, "已复制到剪贴板\n已保存: " + file.getAbsolutePath(), Toast.LENGTH_LONG).show();
+                } else {
+                    Toast.makeText(this, "已复制到剪贴板\n外部存储不可用", Toast.LENGTH_SHORT).show();
+                }
+            } catch (Exception e) {
+                Toast.makeText(this, "已复制到剪贴板\n保存失败: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            }
+        });
         tvDebugErrors = findViewById(R.id.tvDebugErrors);
         tvValidationBadge = findViewById(R.id.tvValidationBadge);
 
@@ -189,7 +212,12 @@ public class TextDemoActivity extends AppCompatActivity {
                 @Override
                 public void onDeleteSurface(Surface surface) {
                     runOnUiThread(() -> {
-                        addLog("Surface deleted: " + surface.getSurfaceId());
+                        String sid = surface.getSurfaceId();
+                        addLog("Surface deleted: " + sid);
+                        if (sid.equals(lastSurfaceId)) {
+                            lastSurfaceId = null;
+                        }
+                        renderArea.removeAllViews();
                         renderStatus = "idle";
                         updateDebugInfo();
                     });
@@ -488,6 +516,35 @@ public class TextDemoActivity extends AppCompatActivity {
             return;
         }
 
+        // Delete previous surface before creating a new one
+        if (lastSurfaceId != null) {
+            surfaceManager.beginTextStream();
+            try {
+                String deleteMsg = new JSONObject()
+                        .put("version", "v0.9")
+                        .put("deleteSurface", new JSONObject()
+                                .put("surfaceId", lastSurfaceId))
+                        .toString();
+                surfaceManager.receiveTextChunk(deleteMsg);
+                addLog("Sent deleteSurface: " + lastSurfaceId);
+            } catch (Exception e) {
+                addLog("deleteSurface failed: " + e.getMessage());
+            }
+            surfaceManager.endTextStream();
+            lastSurfaceId = null;
+            renderArea.removeAllViews();
+        }
+
+        // Extract surfaceId from createSurface message for future cleanup
+        try {
+            JSONObject createObj = new JSONObject(messages[0]);
+            if (createObj.has("createSurface")) {
+                lastSurfaceId = createObj.getJSONObject("createSurface").optString("surfaceId", null);
+            }
+        } catch (Exception e) {
+            addLog("Could not extract surfaceId: " + e.getMessage());
+        }
+
         surfaceManager.beginTextStream();
         addLog("beginTextStream");
 
@@ -688,10 +745,10 @@ public class TextDemoActivity extends AppCompatActivity {
     private void toggleDebug() {
         debugExpanded = !debugExpanded;
         if (debugExpanded) {
-            debugScrollView.setVisibility(View.VISIBLE);
+            debugContent.setVisibility(View.VISIBLE);
             tvDebugToggle.setText("▲");
         } else {
-            debugScrollView.setVisibility(View.GONE);
+            debugContent.setVisibility(View.GONE);
             tvDebugToggle.setText("▼");
         }
     }
@@ -699,10 +756,10 @@ public class TextDemoActivity extends AppCompatActivity {
     private void toggleLogs() {
         logsExpanded = !logsExpanded;
         if (logsExpanded) {
-            logsScrollView.setVisibility(View.VISIBLE);
+            logsContent.setVisibility(View.VISIBLE);
             tvLogsToggle.setText("▲");
         } else {
-            logsScrollView.setVisibility(View.GONE);
+            logsContent.setVisibility(View.GONE);
             tvLogsToggle.setText("▼");
         }
     }
