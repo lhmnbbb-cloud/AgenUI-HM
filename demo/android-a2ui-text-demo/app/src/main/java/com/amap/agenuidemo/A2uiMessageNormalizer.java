@@ -218,7 +218,10 @@ public final class A2uiMessageNormalizer {
             update = buildUpdateComponents(surfaceId, looseComponents);
         }
         if (update == null) {
-            throw new Exception("missing updateComponents message");
+            String found = "createSurface=" + (create != null ? "yes" : "no")
+                    + ", looseComponents=" + looseComponents.length()
+                    + ", inputCount=" + input.length();
+            throw new Exception("LLM output incomplete: missing updateComponents. Found: " + found);
         }
 
         normalizeUpdateComponents(update, surfaceId);
@@ -617,14 +620,26 @@ public final class A2uiMessageNormalizer {
             }
         }
 
-        if (roots.size() <= 1 && explicitRoot != null) {
-            return;
-        }
-        if (roots.size() <= 1 && explicitRoot == null) {
+        // Single topological root with id "root" — nothing to fix
+        if (roots.size() == 1 && roots.contains("root")) {
             return;
         }
 
-        if (explicitRoot == null) {
+        // If an id="root" component exists but is NOT the topological root,
+        // rename it to avoid duplicate id when we create a synthetic "root"
+        if (explicitRoot != null && !roots.contains("root")) {
+            String newId = "root_renamed";
+            String oldId = "root";
+            explicitRoot.put("id", newId);
+            // Update all references from old id to new id
+            for (JSONObject component : components) {
+                renameReference(component, "children", oldId, newId);
+                renameReference(component, "child", oldId, newId);
+            }
+        }
+
+        // Need a synthetic "root" — either no id="root" exists, or multiple roots
+        if (explicitRoot == null || !roots.contains("root")) {
             explicitRoot = new JSONObject()
                     .put("id", "root")
                     .put("component", "Column")
@@ -659,6 +674,21 @@ public final class A2uiMessageNormalizer {
         String child = properties.optString("child", "");
         if (!child.isEmpty()) {
             referencedIds.add(child);
+        }
+    }
+
+    private static void renameReference(JSONObject component, String key, String oldId, String newId) throws Exception {
+        JSONArray arr = component.optJSONArray(key);
+        if (arr != null) {
+            for (int i = 0; i < arr.length(); i++) {
+                if (oldId.equals(String.valueOf(arr.opt(i)))) {
+                    arr.put(i, newId);
+                }
+            }
+        }
+        String single = component.optString(key, "");
+        if (oldId.equals(single)) {
+            component.put(key, newId);
         }
     }
 

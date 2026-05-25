@@ -76,7 +76,9 @@ Rules:
 - Use "styles" object for styling (padding, gap, background-color, color, font-weight, text-align, border-radius, width, height, filter)
 - Button can have "action": {"functionCall": {"call": "toast", "args": {"value": "message"}}}
 - Return ONLY the JSON array, no markdown fences, no explanation
-- surfaceId must be the same in createSurface and updateComponents"""
+- surfaceId must be the same in createSurface and updateComponents
+- The root component MUST have id "root" — the Android SDK requires this exact id to locate the top-level component
+- All visible components MUST be reachable from root.children or child references"""
 
 
 class ProxyHandler(BaseHTTPRequestHandler):

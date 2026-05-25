@@ -299,7 +299,7 @@ public class A2uiJsonValidatorTest {
     }
 
     @Test
-    public void validate_rootNotNamedRoot_returnsWarning() throws Exception {
+    public void validate_rootNotNamedRoot_returnsError() throws Exception {
         String update = new JSONObject()
                 .put("version", "v0.9")
                 .put("updateComponents", new JSONObject()
@@ -309,8 +309,8 @@ public class A2uiJsonValidatorTest {
                 .toString();
 
         A2uiJsonValidator.ValidationResult vr = A2uiJsonValidator.validate(validCreateSurface, update, "{}");
-        assertTrue(vr.isValid());
-        assertTrue(vr.getWarnings().stream().anyMatch(w -> w.contains("recommended")));
+        assertFalse(vr.isValid());
+        assertTrue(vr.getErrors().stream().anyMatch(e -> e.contains("Android SDK requires root id 'root'")));
     }
 
     @Test
@@ -345,5 +345,48 @@ public class A2uiJsonValidatorTest {
         A2uiJsonValidator.ValidationResult vr = A2uiJsonValidator.validate(validCreateSurface, badUpdate, "{}");
         assertFalse(vr.isValid());
         assertTrue(vr.getErrors().stream().anyMatch(e -> e.contains("version") && e.contains("updateComponents")));
+    }
+
+    @Test
+    public void validate_singleRootNamedContainer_returnsError() throws Exception {
+        String badUpdate = new JSONObject()
+                .put("version", "v0.9")
+                .put("updateComponents", new JSONObject()
+                        .put("surfaceId", "surf-1")
+                        .put("components", new JSONArray()
+                                .put(new JSONObject()
+                                        .put("id", "container")
+                                        .put("component", "Column")
+                                        .put("children", new JSONArray().put("title")))
+                                .put(new JSONObject()
+                                        .put("id", "title")
+                                        .put("component", "Text")
+                                        .put("text", "Hello"))))
+                .toString();
+
+        A2uiJsonValidator.ValidationResult vr = A2uiJsonValidator.validate(validCreateSurface, badUpdate, "{}");
+        assertFalse(vr.isValid());
+        assertTrue(vr.getErrors().stream().anyMatch(e -> e.contains("container") && e.contains("Android SDK requires root id 'root'")));
+    }
+
+    @Test
+    public void validate_rootNamedRoot_isValid() throws Exception {
+        String goodUpdate = new JSONObject()
+                .put("version", "v0.9")
+                .put("updateComponents", new JSONObject()
+                        .put("surfaceId", "surf-1")
+                        .put("components", new JSONArray()
+                                .put(new JSONObject()
+                                        .put("id", "root")
+                                        .put("component", "Column")
+                                        .put("children", new JSONArray().put("title")))
+                                .put(new JSONObject()
+                                        .put("id", "title")
+                                        .put("component", "Text")
+                                        .put("text", "Hello"))))
+                .toString();
+
+        A2uiJsonValidator.ValidationResult vr = A2uiJsonValidator.validate(validCreateSurface, goodUpdate, "{}");
+        assertTrue(vr.getFormattedReport(), vr.isValid());
     }
 }

@@ -313,7 +313,7 @@ public class A2uiJsonValidator {
         } else if (rootIds.size() == 1) {
             String rootId = rootIds.iterator().next();
             if (!"root".equals(rootId)) {
-                warnings.add("Root component id is '" + rootId + "'; recommended id is 'root'");
+                errors.add("Root component id is '" + rootId + "'; Android SDK requires root id 'root'");
             }
         }
     }
