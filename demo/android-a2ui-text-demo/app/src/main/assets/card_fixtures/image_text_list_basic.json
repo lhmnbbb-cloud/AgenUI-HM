@@ -1,0 +1,22 @@
+{
+  "requestId": "imglist_001",
+  "cardType": "image_text_list",
+  "title": "热门推荐",
+  "items": [
+    {
+      "imageUrl": "https://picsum.photos/160/160?random=1",
+      "title": "智能助手",
+      "subtitle": "随时为你解答问题"
+    },
+    {
+      "imageUrl": "https://picsum.photos/160/160?random=2",
+      "title": "出行规划",
+      "subtitle": "最优路线一键导航"
+    },
+    {
+      "imageUrl": "https://picsum.photos/160/160?random=3",
+      "title": "生活服务",
+      "subtitle": "周边美食酒店推荐"
+    }
+  ]
+}

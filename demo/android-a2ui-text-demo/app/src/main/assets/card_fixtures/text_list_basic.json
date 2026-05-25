@@ -1,0 +1,12 @@
+{
+  "requestId": "list_001",
+  "cardType": "text_list",
+  "title": "常用功能",
+  "items": [
+    { "text": "实时天气查询" },
+    { "text": "智能导航规划" },
+    { "text": "语音交互控制" },
+    { "text": "个性化推荐" },
+    { "text": "系统状态监控" }
+  ]
+}

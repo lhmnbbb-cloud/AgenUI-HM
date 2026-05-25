@@ -24,6 +24,10 @@ import com.amap.agenui.render.surface.ISurfaceManagerListener;
 import com.amap.agenui.render.surface.Surface;
 import com.amap.agenui.render.surface.SurfaceManager;
 
+import com.amap.agenuidemo.card.CardDataProvider;
+import com.amap.agenuidemo.card.CardRenderResult;
+import com.amap.agenuidemo.card.CardTemplateRenderer;
+
 import org.json.JSONObject;
 
 import java.util.concurrent.ExecutorService;
@@ -49,6 +53,7 @@ public class TextDemoActivity extends AppCompatActivity {
     // UI - controls
     private Spinner spinnerProvider;
     private Spinner spinnerFixture;
+    private Spinner spinnerCardFixture;
     private SwitchCompat switchStreaming;
     private EditText etLlmUrl;
     private EditText etProxyToken;
@@ -77,6 +82,7 @@ public class TextDemoActivity extends AppCompatActivity {
     private ProviderType currentProviderType = ProviderType.MOCK;
     private UiGenerationProvider provider;
     private FixtureUiGenerationProvider fixtureProvider;
+    private CardDataProvider cardFixtureProvider;
     private LLMUiGenerationProvider llmProvider;
 
     // Streaming
@@ -129,6 +135,7 @@ public class TextDemoActivity extends AppCompatActivity {
 
         spinnerProvider = findViewById(R.id.spinnerProvider);
         spinnerFixture = findViewById(R.id.spinnerFixture);
+        spinnerCardFixture = findViewById(R.id.spinnerCardFixture);
         switchStreaming = findViewById(R.id.switchStreaming);
         etLlmUrl = findViewById(R.id.etLlmUrl);
         etProxyToken = findViewById(R.id.etProxyToken);
@@ -238,6 +245,7 @@ public class TextDemoActivity extends AppCompatActivity {
     private void initProvider() {
         provider = new MockUiGenerationProvider();
         fixtureProvider = new FixtureUiGenerationProvider(this);
+        cardFixtureProvider = new CardDataProvider(this);
         llmProvider = new LLMUiGenerationProvider();
     }
 
@@ -275,19 +283,31 @@ public class TextDemoActivity extends AppCompatActivity {
             case MOCK:
                 provider = new MockUiGenerationProvider();
                 spinnerFixture.setVisibility(View.GONE);
+                spinnerCardFixture.setVisibility(View.GONE);
                 etLlmUrl.setVisibility(View.GONE);
                 etProxyToken.setVisibility(View.GONE);
                 break;
             case FIXTURE:
                 provider = fixtureProvider;
                 spinnerFixture.setVisibility(View.VISIBLE);
+                spinnerCardFixture.setVisibility(View.GONE);
                 etLlmUrl.setVisibility(View.GONE);
                 etProxyToken.setVisibility(View.GONE);
                 populateFixtureSpinner();
                 break;
+            case CARD_FIXTURE:
+                // Card Fixture doesn't use the UiGenerationProvider interface;
+                // it has its own generation path via CardDataProvider + CardTemplateRenderer
+                spinnerFixture.setVisibility(View.GONE);
+                spinnerCardFixture.setVisibility(View.VISIBLE);
+                etLlmUrl.setVisibility(View.GONE);
+                etProxyToken.setVisibility(View.GONE);
+                populateCardFixtureSpinner();
+                break;
             case LLM:
                 provider = llmProvider;
                 spinnerFixture.setVisibility(View.GONE);
+                spinnerCardFixture.setVisibility(View.GONE);
                 etLlmUrl.setVisibility(View.VISIBLE);
                 etProxyToken.setVisibility(View.VISIBLE);
                 break;
@@ -316,6 +336,26 @@ public class TextDemoActivity extends AppCompatActivity {
         });
     }
 
+    private void populateCardFixtureSpinner() {
+        java.util.List<String> cardFixtures = cardFixtureProvider.getAvailableFixtures();
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this,
+                android.R.layout.simple_spinner_item, cardFixtures);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinnerCardFixture.setAdapter(adapter);
+        spinnerCardFixture.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                String name = cardFixtures.get(position);
+                cardFixtureProvider.selectFixture(name);
+                updateDebugInfo();
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+            }
+        });
+    }
+
     private void onGenerateClick() {
         if (isBusy) return;
 
@@ -332,8 +372,97 @@ public class TextDemoActivity extends AppCompatActivity {
 
         if (currentProviderType == ProviderType.LLM) {
             handleLlmGenerate(input);
+        } else if (currentProviderType == ProviderType.CARD_FIXTURE) {
+            handleCardFixtureGenerate();
         } else {
             handleSyncGenerate(input);
+        }
+    }
+
+    private void handleCardFixtureGenerate() {
+        try {
+            setBusy(true);
+            lastUserInput = cardFixtureProvider.getSelectedFixture() != null
+                    ? cardFixtureProvider.getSelectedFixture() : "";
+            lastRawLlmOutput = "";
+            renderStatus = "idle";
+            lastError = "";
+            lastGeneratedMessages = null;
+            updateDebugInfo();
+
+            String selectedFixture = cardFixtureProvider.getSelectedFixture();
+            if (selectedFixture == null || selectedFixture.isEmpty()) {
+                renderStatus = "error";
+                lastError = "No card fixture selected";
+                tvValidationBadge.setText("ERROR");
+                tvValidationBadge.setTextColor(0xFFCC0000);
+                setBusy(false);
+                updateDebugInfo();
+                Toast.makeText(this, "请选择 Card Fixture", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            // CardDataProvider.renderFixture returns CardRenderResult (never null)
+            CardRenderResult result = cardFixtureProvider.renderFixture(selectedFixture);
+
+            String[] messages = result.getMessages();
+            if (messages == null || messages.length < 3) {
+                renderStatus = "error";
+                lastError = "Card render returned no messages";
+                tvValidationBadge.setText("ERROR");
+                tvValidationBadge.setTextColor(0xFFCC0000);
+                setBusy(false);
+                updateDebugInfo();
+                Toast.makeText(this, "卡片渲染失败", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            lastGeneratedMessages = messages;
+
+            if (!result.isValid()) {
+                addLog("Card contract validation failed: " + result.getFormattedErrors());
+                tvValidationBadge.setText("FALLBACK");
+                tvValidationBadge.setTextColor(0xFFCC6600);
+            } else {
+                tvValidationBadge.setText("PASS");
+                tvValidationBadge.setTextColor(0xFF008800);
+            }
+
+            // Validate generated A2UI with shared validator
+            A2uiJsonValidator.ValidationResult validation =
+                    A2uiJsonValidator.validate(messages[0], messages[1], messages[2]);
+
+            if (!validation.isValid()) {
+                renderStatus = "error";
+                lastError = "A2UI validation failed (should not happen for template output): "
+                        + validation.getFormattedReport();
+                tvValidationBadge.setText("FAIL");
+                tvValidationBadge.setTextColor(0xFFCC0000);
+                setBusy(false);
+                updateDebugInfo();
+                addLog("Template A2UI validation failed: " + validation.getErrors().size() + " error(s)");
+                return;
+            }
+
+            // Stream to SDK (no normalizer — template output is already valid A2UI)
+            renderStatus = "streaming";
+            updateDebugInfo();
+
+            if (streamingMode) {
+                streamToSdk(messages);
+            } else {
+                sendToSdk(messages);
+            }
+
+        } catch (Exception e) {
+            renderStatus = "error";
+            lastError = Log.getStackTraceString(e);
+            tvValidationBadge.setText("ERROR");
+            tvValidationBadge.setTextColor(0xFFCC0000);
+            setBusy(false);
+            updateDebugInfo();
+            addLog("Card fixture render failed: " + e.getMessage());
+            Toast.makeText(this, "卡片渲染失败: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -502,18 +631,22 @@ public class TextDemoActivity extends AppCompatActivity {
     }
 
     private void sendToSdk(String[] messages) {
-        try {
-            messages = A2uiMessageNormalizer.normalizeMessages(messages);
-            lastGeneratedMessages = messages;
-        } catch (Exception e) {
-            renderStatus = "error";
-            lastError = "A2UI normalize failed before render: " + e.getMessage();
-            tvValidationBadge.setText("ERROR");
-            tvValidationBadge.setTextColor(0xFFCC0000);
-            setBusy(false);
-            updateDebugInfo();
-            addLog("Normalize before SDK failed: " + e.getMessage());
-            return;
+        // Card Fixture output is already valid A2UI; skip normalization to preserve
+        // template structure exactly. All other paths need normalization.
+        if (currentProviderType != ProviderType.CARD_FIXTURE) {
+            try {
+                messages = A2uiMessageNormalizer.normalizeMessages(messages);
+                lastGeneratedMessages = messages;
+            } catch (Exception e) {
+                renderStatus = "error";
+                lastError = "A2UI normalize failed before render: " + e.getMessage();
+                tvValidationBadge.setText("ERROR");
+                tvValidationBadge.setTextColor(0xFFCC0000);
+                setBusy(false);
+                updateDebugInfo();
+                addLog("Normalize before SDK failed: " + e.getMessage());
+                return;
+            }
         }
 
         // Delete previous surface before creating a new one
@@ -789,6 +922,9 @@ public class TextDemoActivity extends AppCompatActivity {
         String providerInfo = "Provider: " + currentProviderType.getDisplayName();
         if (currentProviderType == ProviderType.FIXTURE && fixtureProvider.getSelectedFixture() != null) {
             providerInfo += " [" + fixtureProvider.getSelectedFixture() + "]";
+        }
+        if (currentProviderType == ProviderType.CARD_FIXTURE && cardFixtureProvider.getSelectedFixture() != null) {
+            providerInfo += " [" + cardFixtureProvider.getSelectedFixture() + "]";
         }
         if (currentProviderType == ProviderType.LLM) {
             providerInfo += " [" + llmProvider.getEndpointUrl() + "]";

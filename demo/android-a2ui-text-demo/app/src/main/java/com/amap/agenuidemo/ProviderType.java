@@ -3,6 +3,7 @@ package com.amap.agenuidemo;
 public enum ProviderType {
     MOCK("Mock"),
     FIXTURE("Fixture"),
+    CARD_FIXTURE("Card Fixture"),
     LLM("LLM");
 
     private final String displayName;

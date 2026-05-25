@@ -5,11 +5,13 @@
 ## 功能
 
 - 输入中文文本，点击"生成 UI"按钮
-- 支持三种 Provider 模式生成 A2UI 协议 JSON：
+- 支持四种 Provider 模式生成 A2UI 协议 JSON：
   - **Mock** — 根据关键词匹配生成内置 UI
   - **Fixture** — 从 `assets/fixtures/` 加载本地 A2UI JSON 样例
+  - **Card Fixture** — 从 `assets/card_fixtures/` 加载结构化卡片数据，本地确定性生成 A2UI
   - **LLM** — 通过 HTTP POST 调用可配置的生成接口，接入真实大模型
 - LLM 输出先经过 `A2uiMessageNormalizer` 归一化，再进入校验和 SDK 渲染
+- Card Fixture 输出不经过 Normalizer，由 `CardTemplateRenderer` 本地确定性生成 A2UI
 - 所有 UI 通过 AGenUI SDK 原生渲染，不依赖 WebView
 - 默认使用 MockUiGenerationProvider，不依赖网络大模型
 
@@ -47,6 +49,57 @@ Fixture 文件格式为 JSON 数组：
 - `[0]` = createSurface 消息
 - `[1]` = updateComponents 消息
 - `[2]` = updateDataModel 消息（可为空 `{}`）
+
+### Card Fixture 模式
+
+这是推荐的真实项目架构验证路径：**AI 输出结构化卡片数据 → Android 本地确定性生成 A2UI → 渲染**。
+
+与普通 Fixture 的区别：
+- **Fixture** 加载的是已写好的 A2UI 协议 JSON（最终 UI）
+- **Card Fixture** 加载的是结构化业务数据（卡片语义），由 `CardTemplateRenderer` 在本地转换为 A2UI
+
+数据流程：
+
+```
+CardData JSON (结构化卡片数据)
+  → CardContractValidator (校验卡片协议)
+  → CardTemplateRenderer (本地确定性生成 A2UI)
+  → A2uiJsonValidator (校验 A2UI 输出)
+  → SurfaceManager → AGenUI 渲染
+```
+
+CardData 不经过 `A2uiMessageNormalizer`，模板输出已是合法 A2UI。
+
+支持三种 cardType：
+
+| cardType | 必填字段 | 说明 |
+|---|---|---|
+| `text_summary` | requestId, cardType, title, content | 文本摘要卡片 |
+| `text_list` | requestId, cardType, title, items[] | 文字列表卡片（每个 item 含 text） |
+| `image_text_list` | requestId, cardType, title, items[] | 图文列表卡片（每个 item 含 imageUrl, title, subtitle） |
+
+Card Fixture 样例：
+
+| 文件 | cardType | 说明 |
+|---|---|---|
+| `text_summary_basic.json` | text_summary | 天气摘要 |
+| `text_list_basic.json` | text_list | 功能列表 |
+| `image_text_list_basic.json` | image_text_list | 热门推荐（含图片 URL） |
+| `text_list_empty.json` | text_list | 空列表（触发 fallback） |
+| `invalid_missing_card_type.json` | 无 | 缺少 cardType（触发 fallback） |
+
+CardData 示例：
+
+```json
+{
+  "requestId": "summary_001",
+  "cardType": "text_summary",
+  "title": "今日天气",
+  "content": "上海今日晴转多云，气温 26°C / 18°C。"
+}
+```
+
+校验失败时自动降级为 error_fallback 卡片（不会出现空白 UI）。
 
 ### 流式模式 (Streaming)
 
@@ -232,12 +285,18 @@ demo/android-a2ui-text-demo/
 │   └── src/main/
 │       ├── AndroidManifest.xml
 │       ├── assets/
-│       │   └── fixtures/
-│       │       ├── weather.json
-│       │       ├── settings.json
-│       │       ├── form_with_action.json
-│       │       ├── list.json
-│       │       └── info.json
+│       │   ├── fixtures/
+│       │   │   ├── weather.json
+│       │   │   ├── settings.json
+│       │   │   ├── form_with_action.json
+│       │   │   ├── list.json
+│       │   │   └── info.json
+│       │   └── card_fixtures/
+│       │       ├── text_summary_basic.json
+│       │       ├── text_list_basic.json
+│       │       ├── image_text_list_basic.json
+│       │       ├── text_list_empty.json
+│       │       └── invalid_missing_card_type.json
 │       ├── java/com/amap/agenuidemo/
 │       │   ├── TextDemoActivity.java           # 主 Activity
 │       │   ├── UiGenerationProvider.java        # UI 生成接口
@@ -249,7 +308,13 @@ demo/android-a2ui-text-demo/
 │       │   ├── A2uiJsonValidator.java           # A2UI JSON 校验器
 │       │   ├── ToastFunction.java               # Toast 函数调用
 │       │   ├── StreamingSimulator.java          # 流式模拟器
-│       │   └── SSEClient.java                   # SSE 客户端（真实流式）
+│       │   ├── SSEClient.java                   # SSE 客户端（真实流式）
+│       │   └── card/
+│       │       ├── CardType.java                # 卡片类型枚举
+│       │       ├── CardContractValidator.java   # 卡片协议校验
+│       │       ├── CardTemplateRenderer.java    # 卡片→A2UI 模板渲染
+│       │       ├── CardRenderResult.java        # 渲染结果
+│       │       └── CardDataProvider.java        # 卡片 Fixture 数据源
 │       └── res/
 │           ├── layout/activity_text_demo.xml
 │           └── values/
@@ -296,6 +361,7 @@ public class RomAiUiGenerationProvider implements UiGenerationProvider {
 
 - MockUiGenerationProvider 仅基于关键词匹配，不做自然语言理解
 - FixtureUiGenerationProvider 不支持动态数据绑定
+- Card Fixture 当前仅支持 text_summary、text_list、image_text_list 三种卡片类型
 - 每次点击"生成 UI"会销毁旧 Surface 并创建新 Surface
 - 未实现自定义组件注册（Markdown、Lottie、Chart 等需要手动注册，Demo 默认只使用 SDK 22 种内置组件）
 - 日志区域仅在 App 内展示，不持久化
@@ -305,6 +371,7 @@ public class RomAiUiGenerationProvider implements UiGenerationProvider {
 ## 下一步建议
 
 - 在 normalizer 稳定后，实现协议感知的 LLM SSE 增量渲染，再直连 `receiveTextChunk`
+- 扩展 Card Fixture 支持更多 cardType（设置卡片、表单卡片、图表卡片等）
 - 注册更多 Function Call，让 Button 等组件可交互
 - 注册自定义组件（Markdown、Lottie、Chart 等）扩展渲染能力
 - 在车机 ROM 场景下，实现 RomAiUiGenerationProvider，做 Function Call 权限分级
