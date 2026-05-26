@@ -6,7 +6,7 @@
 | **schemaVersion** | `0.1` |
 | **Status** | Draft — AI 组 & Android 组联合评审 |
 | **Last Updated** | 2026-05-26 |
-| **Owner** | Android 组 (CardContractValidator + CardTemplateRenderer) |
+| **Owner** | Android 组 (CardContractValidator + CardTemplateRenderer + SportsScoreListTemplate) |
 
 ---
 
@@ -26,7 +26,7 @@
 |------|-----|
 | cardType | `sports_score_list` |
 | schemaVersion | `0.1`（当前未嵌入 JSON，仅作文档版本标识） |
-| 下游渲染 | `CardTemplateRenderer.renderSportsScoreList()` → A2UI v0.9 三段消息 |
+| 下游渲染 | `CardTemplateRenderer` → `SportsScoreListTemplate.render()` → A2UI v0.9 三段消息 |
 | 校验器 | `CardContractValidator.validateSportsScoreList()` |
 | 归一化 | CardData 不经过 `A2uiMessageNormalizer`，模板输出已是合法 A2UI |
 | A2UI 校验 | 模板输出必须通过 `A2uiJsonValidator` |
@@ -352,7 +352,8 @@ Warning：`items[0] final game missing homeTeam.score`、`items[0] final game mi
 |------|------|------|
 | `CardType.java` | `app/src/main/java/.../card/CardType.java` | 枚举 `SPORTS_SCORE_LIST("sports_score_list")` |
 | `CardContractValidator.java` | `app/src/main/java/.../card/CardContractValidator.java` | `validateSportsScoreList()` + `hasEffectiveScore()` |
-| `CardTemplateRenderer.java` | `app/src/main/java/.../card/CardTemplateRenderer.java` | `renderSportsScoreList()` + `formatScore()` |
+| `CardTemplateRenderer.java` | `app/src/main/java/.../card/CardTemplateRenderer.java` | 统一入口，SPORTS_SCORE_LIST 委托 `SportsScoreListTemplate` |
+| `SportsScoreListTemplate.java` | `app/src/main/java/.../card/template/SportsScoreListTemplate.java` | `render()` + `formatScore()` + `formatStatus()` |
 | `CardRenderResult.java` | `app/src/main/java/.../card/CardRenderResult.java` | valid + messages + errors + warnings |
 
 ### 8.2 数据流
@@ -362,7 +363,7 @@ CardData JSON
   → CardContractValidator.validate()
     → 错误: 渲染 fallback 卡片 (CardRenderResult.valid=false)
     → 有效: 继续
-  → CardTemplateRenderer.renderSportsScoreList()
+  → CardTemplateRenderer.render() → SportsScoreListTemplate.render()
     → A2UI v0.9 三段消息 [createSurface, updateComponents, "{}"]
     → CardRenderResult(valid=true, messages, warnings)
   → A2uiJsonValidator.validate() (当前 demo 运行时和单测均校验；正式产品可根据性能策略决定是否保留运行时校验)
@@ -404,6 +405,23 @@ CardData JSON
 | `render_sportsScoreListWithWarnings_propagatesWarnings` | warning 传递到 CardRenderResult |
 | `render_sportsScoreListPartialFields_rendersGracefully` | 缺可选字段正常渲染 |
 | `render_sportsScoreListNullAndEmptyScore_showsDash` | null/空 score → "--" |
+
+**SportsScoreListTemplateTest（12 个测试）：**
+
+| 测试 | 验证点 |
+|------|--------|
+| `render_basic_returnsThreeMessages` | 3 消息输出，surfaceId 格式，通过 A2uiJsonValidator |
+| `render_emptyItems_rendersEmptyState` | 空列表渲染 5 组件，"今日暂无赛况" |
+| `formatScore_number_returnsIntString` | 108 → "108" |
+| `formatScore_null_final_returnsDashDash` | null + final → "--" |
+| `formatScore_null_scheduled_returnsSingleDash` | null + scheduled → "-" |
+| `formatScore_emptyString_final_returnsDashDash` | "" + final → "--" |
+| `formatStatus_final` | "FINAL" |
+| `formatStatus_live` | "LIVE ●" |
+| `formatStatus_scheduled_withStartTime` | "19:00 开赛" |
+| `formatStatus_scheduled_noStartTime` | "待开赛" |
+| `formatStatus_unknown` | null/"" → "未知" |
+| `formatStatus_unknownValue_passesThrough` | "postponed" → "postponed" |
 
 ---
 

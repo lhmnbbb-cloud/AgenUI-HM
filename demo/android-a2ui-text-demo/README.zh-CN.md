@@ -396,9 +396,11 @@ demo/android-a2ui-text-demo/
 │       │   └── card/
 │       │       ├── CardType.java                # 卡片类型枚举
 │       │       ├── CardContractValidator.java   # 卡片协议校验
-│       │       ├── CardTemplateRenderer.java    # 卡片→A2UI 模板渲染
+│       │       ├── CardTemplateRenderer.java    # 卡片→A2UI 模板渲染入口
 │       │       ├── CardRenderResult.java        # 渲染结果
-│       │       └── CardDataProvider.java        # 卡片 Fixture 数据源
+│       │       ├── CardDataProvider.java        # 卡片 Fixture 数据源
+│       │       └── template/
+│       │           └── SportsScoreListTemplate.java  # sports_score_list 模板
 │       └── res/
 │           ├── layout/activity_text_demo.xml
 │           └── values/

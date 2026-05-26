@@ -160,7 +160,7 @@ CardContractValidator
 校验 AI 组传来的结构化卡片数据
 
 CardTemplateRenderer
-根据 cardType 选择固定模板
+统一入口，根据 cardType 委托 card/template/*Template 渲染
 
 A2uiMessageBuilder
 本地生成 createSurface / updateComponents / updateDataModel

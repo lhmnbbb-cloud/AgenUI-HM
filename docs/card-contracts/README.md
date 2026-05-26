@@ -26,7 +26,8 @@ CardData 协议定义 AI 组输出和 Android 组校验/渲染之间的结构化
 ```
 AI 组输出 CardData JSON
   → CardContractValidator (校验卡片协议)
-  → CardTemplateRenderer (本地确定性生成 A2UI)
+  → CardTemplateRenderer (统一入口，按 cardType 委托具体模板)
+    → card/template/*Template (本地确定性生成 A2UI)
   → A2uiJsonValidator (校验 A2UI 输出)
   → SurfaceManager → AGenUI 渲染
 ```
@@ -37,7 +38,7 @@ CardData 不经过 `A2uiMessageNormalizer`，模板输出已是合法 A2UI。
 
 1. 在 `CardType.java` 新增枚举值。
 2. 在 `CardContractValidator.java` 新增校验逻辑。
-3. 在 `CardTemplateRenderer.java` 新增渲染模板。
+3. 在 `card/template/` 下新增 `*Template.java` 渲染模板，在 `CardTemplateRenderer.java` switch 中添加委托。
 4. 创建 fixture JSON 样例（`app/src/main/assets/card_fixtures/`）。
 5. 编写单元测试。
 6. 在本目录新增协议文档，双方评审。
