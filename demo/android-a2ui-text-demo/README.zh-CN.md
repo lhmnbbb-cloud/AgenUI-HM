@@ -5,13 +5,15 @@
 ## 功能
 
 - 输入中文文本，点击"生成 UI"按钮
-- 支持四种 Provider 模式生成 A2UI 协议 JSON：
+- 支持五种 Provider 模式生成 A2UI 协议 JSON：
   - **Mock** — 根据关键词匹配生成内置 UI
   - **Fixture** — 从 `assets/fixtures/` 加载本地 A2UI JSON 样例
   - **Card Fixture** — 从 `assets/card_fixtures/` 加载结构化卡片数据，本地确定性生成 A2UI
+  - **Card JSON** — 用户在输入框粘贴 CardData JSON，直接走 Card 渲染链路
   - **LLM** — 通过 HTTP POST 调用可配置的生成接口，接入真实大模型
 - LLM 输出先经过 `A2uiMessageNormalizer` 归一化，再进入校验和 SDK 渲染
 - Card Fixture 输出不经过 Normalizer，由 `CardTemplateRenderer` 本地确定性生成 A2UI
+- Card JSON 输出不经过 Normalizer，用户粘贴的 CardData JSON 直接由 `CardTemplateRenderer` 渲染
 - 所有 UI 通过 AGenUI SDK 原生渲染，不依赖 WebView
 - 默认使用 MockUiGenerationProvider，不依赖网络大模型
 
@@ -120,6 +122,64 @@ CardData 示例：
 校验失败时自动降级为 error_fallback 卡片（不会出现空白 UI）。
 
 `sports_score_list` 是一个真实业务场景示例，验证"结构化业务数据 → 本地模板 → A2UI"完整管线。AI 输出 NBA 赛况结构化数据，Android 端确定性生成 A2UI，无需 LLM 参与 UI 生成。空赛况列表渲染"今日暂无赛况"空状态（合法，非 fallback），校验 warning（如未知 status、final 缺 score）不阻断渲染。
+
+### Card JSON 模式
+
+切换到 **Card JSON** Provider 后：
+
+1. 输入框提示变为"粘贴 CardData JSON"
+2. 用户粘贴任意 cardType 的 CardData JSON，点击"生成 UI"
+3. App 直接将 JSON 送入 `CardContractValidator` → `CardTemplateRenderer` 渲染链路，不经过 LLM、不经过 `A2uiMessageNormalizer`
+
+数据流程与 Card Fixture 相同：
+
+```
+用户粘贴 CardData JSON
+  → CardContractValidator (校验卡片协议)
+  → CardTemplateRenderer (本地确定性生成 A2UI)
+  → A2uiJsonValidator (校验 A2UI 输出)
+  → SurfaceManager → AGenUI 渲染
+```
+
+此模式用于模拟 AI 组直接传入 CardData JSON 的场景，验证端到端管线时不依赖本地 fixture 文件。
+
+sports_score_list 示例（可直接复制到输入框）：
+
+```json
+{
+  "requestId": "nba_20260526_001",
+  "cardType": "sports_score_list",
+  "title": "NBA 今日赛况",
+  "subtitle": "2026-05-26",
+  "updatedAt": "14:30 更新",
+  "league": "NBA",
+  "items": [
+    {
+      "gameId": "g001",
+      "status": "final",
+      "startTime": "09:00",
+      "summary": "湖人终结连败",
+      "homeTeam": { "name": "湖人", "score": 108 },
+      "awayTeam": { "name": "凯尔特人", "score": 102 }
+    },
+    {
+      "gameId": "g002",
+      "status": "live",
+      "startTime": "10:30",
+      "summary": "第三节进行中",
+      "homeTeam": { "name": "勇士", "score": 85 },
+      "awayTeam": { "name": "掘金", "score": 78 }
+    },
+    {
+      "gameId": "g003",
+      "status": "scheduled",
+      "startTime": "19:00",
+      "homeTeam": { "name": "雄鹿" },
+      "awayTeam": { "name": "76人" }
+    }
+  ]
+}
+```
 
 ### 流式模式 (Streaming)
 

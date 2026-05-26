@@ -286,6 +286,8 @@ public class TextDemoActivity extends AppCompatActivity {
                 spinnerCardFixture.setVisibility(View.GONE);
                 etLlmUrl.setVisibility(View.GONE);
                 etProxyToken.setVisibility(View.GONE);
+                setInputSingleLine();
+                etInput.setHint("输入文本，如：天气、设置、表单、列表...");
                 break;
             case FIXTURE:
                 provider = fixtureProvider;
@@ -293,16 +295,26 @@ public class TextDemoActivity extends AppCompatActivity {
                 spinnerCardFixture.setVisibility(View.GONE);
                 etLlmUrl.setVisibility(View.GONE);
                 etProxyToken.setVisibility(View.GONE);
+                setInputSingleLine();
+                etInput.setHint("输入文本，如：天气、设置、表单、列表...");
                 populateFixtureSpinner();
                 break;
             case CARD_FIXTURE:
-                // Card Fixture doesn't use the UiGenerationProvider interface;
-                // it has its own generation path via CardDataProvider + CardTemplateRenderer
                 spinnerFixture.setVisibility(View.GONE);
                 spinnerCardFixture.setVisibility(View.VISIBLE);
                 etLlmUrl.setVisibility(View.GONE);
                 etProxyToken.setVisibility(View.GONE);
+                setInputSingleLine();
+                etInput.setHint("输入文本，如：天气、设置、表单、列表...");
                 populateCardFixtureSpinner();
+                break;
+            case CARD_JSON_INPUT:
+                spinnerFixture.setVisibility(View.GONE);
+                spinnerCardFixture.setVisibility(View.GONE);
+                etLlmUrl.setVisibility(View.GONE);
+                etProxyToken.setVisibility(View.GONE);
+                setInputMultiLine();
+                etInput.setHint("粘贴 CardData JSON");
                 break;
             case LLM:
                 provider = llmProvider;
@@ -310,10 +322,30 @@ public class TextDemoActivity extends AppCompatActivity {
                 spinnerCardFixture.setVisibility(View.GONE);
                 etLlmUrl.setVisibility(View.VISIBLE);
                 etProxyToken.setVisibility(View.VISIBLE);
+                setInputSingleLine();
+                etInput.setHint("输入文本，如：天气、设置、表单、列表...");
                 break;
         }
         updateDebugInfo();
         addLog("Provider switched to: " + type.getDisplayName());
+    }
+
+    private void setInputSingleLine() {
+        etInput.setInputType(android.text.InputType.TYPE_CLASS_TEXT);
+        etInput.setMinLines(1);
+        etInput.setMaxLines(3);
+        etInput.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        etInput.setSingleLine(false);
+    }
+
+    private void setInputMultiLine() {
+        etInput.setInputType(android.text.InputType.TYPE_CLASS_TEXT
+                | android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE
+                | android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        etInput.setMinLines(6);
+        etInput.setMaxLines(12);
+        etInput.setGravity(android.view.Gravity.TOP);
+        etInput.setSingleLine(false);
     }
 
     private void populateFixtureSpinner() {
@@ -360,9 +392,15 @@ public class TextDemoActivity extends AppCompatActivity {
         if (isBusy) return;
 
         String input = etInput.getText().toString().trim();
-        if (input.isEmpty() && currentProviderType == ProviderType.MOCK) {
-            Toast.makeText(this, "请输入文本", Toast.LENGTH_SHORT).show();
-            return;
+        if (input.isEmpty()) {
+            if (currentProviderType == ProviderType.MOCK) {
+                Toast.makeText(this, "请输入文本", Toast.LENGTH_SHORT).show();
+            } else if (currentProviderType == ProviderType.CARD_JSON_INPUT) {
+                Toast.makeText(this, "请输入 CardData JSON", Toast.LENGTH_SHORT).show();
+            }
+            if (currentProviderType == ProviderType.MOCK || currentProviderType == ProviderType.CARD_JSON_INPUT) {
+                return;
+            }
         }
 
         if (aGenUI == null || surfaceManager == null) {
@@ -374,6 +412,8 @@ public class TextDemoActivity extends AppCompatActivity {
             handleLlmGenerate(input);
         } else if (currentProviderType == ProviderType.CARD_FIXTURE) {
             handleCardFixtureGenerate();
+        } else if (currentProviderType == ProviderType.CARD_JSON_INPUT) {
+            handleCardJsonInputGenerate(input);
         } else {
             handleSyncGenerate(input);
         }
@@ -402,63 +442,8 @@ public class TextDemoActivity extends AppCompatActivity {
                 return;
             }
 
-            // CardDataProvider.renderFixture returns CardRenderResult (never null)
             CardRenderResult result = cardFixtureProvider.renderFixture(selectedFixture);
-
-            String[] messages = result.getMessages();
-            if (messages == null || messages.length < 3) {
-                renderStatus = "error";
-                lastError = "Card render returned no messages";
-                tvValidationBadge.setText("ERROR");
-                tvValidationBadge.setTextColor(0xFFCC0000);
-                setBusy(false);
-                updateDebugInfo();
-                Toast.makeText(this, "卡片渲染失败", Toast.LENGTH_SHORT).show();
-                return;
-            }
-
-            lastGeneratedMessages = messages;
-
-            if (!result.isValid()) {
-                addLog("Card contract validation failed: " + result.getFormattedErrors());
-                lastError = result.getFormattedReport();
-                tvValidationBadge.setText("FALLBACK");
-                tvValidationBadge.setTextColor(0xFFCC6600);
-            } else {
-                String warns = result.getFormattedWarnings();
-                if (!warns.isEmpty()) {
-                    addLog("Card validation warnings: " + warns);
-                    lastError = warns;
-                }
-                tvValidationBadge.setText("PASS");
-                tvValidationBadge.setTextColor(0xFF008800);
-            }
-
-            // Validate generated A2UI with shared validator
-            A2uiJsonValidator.ValidationResult validation =
-                    A2uiJsonValidator.validate(messages[0], messages[1], messages[2]);
-
-            if (!validation.isValid()) {
-                renderStatus = "error";
-                lastError = "A2UI validation failed (should not happen for template output): "
-                        + validation.getFormattedReport();
-                tvValidationBadge.setText("FAIL");
-                tvValidationBadge.setTextColor(0xFFCC0000);
-                setBusy(false);
-                updateDebugInfo();
-                addLog("Template A2UI validation failed: " + validation.getErrors().size() + " error(s)");
-                return;
-            }
-
-            // Stream to SDK (no normalizer — template output is already valid A2UI)
-            renderStatus = "streaming";
-            updateDebugInfo();
-
-            if (streamingMode) {
-                streamToSdk(messages);
-            } else {
-                sendToSdk(messages);
-            }
+            handleCardRenderResult(result, selectedFixture);
 
         } catch (Exception e) {
             renderStatus = "error";
@@ -468,6 +453,96 @@ public class TextDemoActivity extends AppCompatActivity {
             setBusy(false);
             updateDebugInfo();
             addLog("Card fixture render failed: " + e.getMessage());
+            Toast.makeText(this, "卡片渲染失败: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void handleCardRenderResult(CardRenderResult result, String sourceLabel) {
+        String[] messages = result.getMessages();
+        if (messages == null || messages.length < 3) {
+            renderStatus = "error";
+            lastError = "Card render returned no messages";
+            tvValidationBadge.setText("ERROR");
+            tvValidationBadge.setTextColor(0xFFCC0000);
+            setBusy(false);
+            updateDebugInfo();
+            Toast.makeText(this, "卡片渲染失败", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        lastGeneratedMessages = messages;
+
+        if (!result.isValid()) {
+            addLog("Card contract validation failed: " + result.getFormattedErrors());
+            lastError = result.getFormattedReport();
+            tvValidationBadge.setText("FALLBACK");
+            tvValidationBadge.setTextColor(0xFFCC6600);
+        } else {
+            String warns = result.getFormattedWarnings();
+            if (!warns.isEmpty()) {
+                addLog("Card validation warnings: " + warns);
+                lastError = warns;
+            }
+            tvValidationBadge.setText("PASS");
+            tvValidationBadge.setTextColor(0xFF008800);
+        }
+
+        A2uiJsonValidator.ValidationResult validation =
+                A2uiJsonValidator.validate(messages[0], messages[1], messages[2]);
+
+        if (!validation.isValid()) {
+            renderStatus = "error";
+            lastError = "A2UI validation failed (should not happen for template output): "
+                    + validation.getFormattedReport();
+            tvValidationBadge.setText("FAIL");
+            tvValidationBadge.setTextColor(0xFFCC0000);
+            setBusy(false);
+            updateDebugInfo();
+            addLog("Template A2UI validation failed: " + validation.getErrors().size() + " error(s)");
+            return;
+        }
+
+        renderStatus = "streaming";
+        updateDebugInfo();
+
+        if (streamingMode) {
+            streamToSdk(messages);
+        } else {
+            sendToSdk(messages);
+        }
+    }
+
+    private void handleCardJsonInputGenerate(String input) {
+        try {
+            setBusy(true);
+            lastUserInput = input;
+            lastRawLlmOutput = "";
+            renderStatus = "idle";
+            lastError = "";
+            lastGeneratedMessages = null;
+            updateDebugInfo();
+
+            if (input.isEmpty()) {
+                renderStatus = "error";
+                tvValidationBadge.setText("ERROR");
+                tvValidationBadge.setTextColor(0xFFCC0000);
+                setBusy(false);
+                updateDebugInfo();
+                Toast.makeText(this, "请输入 CardData JSON", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            CardRenderResult result = CardTemplateRenderer.render(input);
+            handleCardRenderResult(result, "Card JSON");
+
+        } catch (Exception e) {
+            renderStatus = "error";
+            lastError = Log.getStackTraceString(e);
+            tvValidationBadge.setText("ERROR");
+            tvValidationBadge.setTextColor(0xFFCC0000);
+            setBusy(false);
+            updateDebugInfo();
+            addLog("Card JSON render failed: " + e.getMessage());
             Toast.makeText(this, "卡片渲染失败: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
     }
@@ -639,7 +714,7 @@ public class TextDemoActivity extends AppCompatActivity {
     private void sendToSdk(String[] messages) {
         // Card Fixture output is already valid A2UI; skip normalization to preserve
         // template structure exactly. All other paths need normalization.
-        if (currentProviderType != ProviderType.CARD_FIXTURE) {
+        if (currentProviderType != ProviderType.CARD_FIXTURE && currentProviderType != ProviderType.CARD_JSON_INPUT) {
             try {
                 messages = A2uiMessageNormalizer.normalizeMessages(messages);
                 lastGeneratedMessages = messages;

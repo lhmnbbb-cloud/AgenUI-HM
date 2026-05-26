@@ -4,6 +4,7 @@ public enum ProviderType {
     MOCK("Mock"),
     FIXTURE("Fixture"),
     CARD_FIXTURE("Card Fixture"),
+    CARD_JSON_INPUT("Card JSON"),
     LLM("LLM");
 
     private final String displayName;
