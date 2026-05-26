@@ -70,13 +70,27 @@ CardData JSON (结构化卡片数据)
 
 CardData 不经过 `A2uiMessageNormalizer`，模板输出已是合法 A2UI。
 
-支持三种 cardType：
+支持四种 cardType：
 
 | cardType | 必填字段 | 说明 |
 |---|---|---|
 | `text_summary` | requestId, cardType, title, content | 文本摘要卡片 |
 | `text_list` | requestId, cardType, title, items[] | 文字列表卡片（每个 item 含 text） |
 | `image_text_list` | requestId, cardType, title, items[] | 图文列表卡片（每个 item 含 imageUrl, title, subtitle） |
+| `sports_score_list` | requestId, cardType, title, items[] | NBA 赛况卡片（每个 item 含 status, homeTeam{name}, awayTeam{name}） |
+
+`sports_score_list` 字段说明：
+
+| 字段 | 级别 | 说明 |
+|---|---|---|
+| `items` | 必填 | JSONArray，可为空（渲染空状态，非 fallback） |
+| `items[].status` | 可选 | `final` / `live` / `scheduled`，未知值产生 warning |
+| `items[].homeTeam.name` | 必填 | 主队名称 |
+| `items[].awayTeam.name` | 必填 | 客队名称 |
+| `items[].homeTeam.score` | 可选 | 主队分数（final/live 缺失产生 warning） |
+| `items[].awayTeam.score` | 可选 | 客队分数 |
+| `items[].summary` | 可选 | 比赛摘要 |
+| `items[].startTime` | 可选 | 开赛时间（如 "19:00"） |
 
 Card Fixture 样例：
 
@@ -87,6 +101,10 @@ Card Fixture 样例：
 | `image_text_list_basic.json` | image_text_list | 热门推荐（含图片 URL） |
 | `text_list_empty.json` | text_list | 空列表（触发 fallback） |
 | `invalid_missing_card_type.json` | 无 | 缺少 cardType（触发 fallback） |
+| `sports_score_list_basic.json` | sports_score_list | NBA 赛况：1场 final + 1场 live + 1场 scheduled |
+| `sports_score_list_empty.json` | sports_score_list | 空赛况（渲染空状态，非 fallback） |
+| `sports_score_list_partial.json` | sports_score_list | 缺少可选字段（summary、startTime） |
+| `sports_score_list_warning.json` | sports_score_list | unknown status + final 缺 score（warning 但仍有效） |
 
 CardData 示例：
 
@@ -100,6 +118,8 @@ CardData 示例：
 ```
 
 校验失败时自动降级为 error_fallback 卡片（不会出现空白 UI）。
+
+`sports_score_list` 是一个真实业务场景示例，验证"结构化业务数据 → 本地模板 → A2UI"完整管线。AI 输出 NBA 赛况结构化数据，Android 端确定性生成 A2UI，无需 LLM 参与 UI 生成。空赛况列表渲染"今日暂无赛况"空状态（合法，非 fallback），校验 warning（如未知 status、final 缺 score）不阻断渲染。
 
 ### 流式模式 (Streaming)
 
@@ -296,7 +316,11 @@ demo/android-a2ui-text-demo/
 │       │       ├── text_list_basic.json
 │       │       ├── image_text_list_basic.json
 │       │       ├── text_list_empty.json
-│       │       └── invalid_missing_card_type.json
+│       │       ├── invalid_missing_card_type.json
+│       │       ├── sports_score_list_basic.json
+│       │       ├── sports_score_list_empty.json
+│       │       ├── sports_score_list_partial.json
+│       │       └── sports_score_list_warning.json
 │       ├── java/com/amap/agenuidemo/
 │       │   ├── TextDemoActivity.java           # 主 Activity
 │       │   ├── UiGenerationProvider.java        # UI 生成接口
@@ -361,7 +385,8 @@ public class RomAiUiGenerationProvider implements UiGenerationProvider {
 
 - MockUiGenerationProvider 仅基于关键词匹配，不做自然语言理解
 - FixtureUiGenerationProvider 不支持动态数据绑定
-- Card Fixture 当前仅支持 text_summary、text_list、image_text_list 三种卡片类型
+- Card Fixture 当前支持 text_summary、text_list、image_text_list、sports_score_list 四种卡片类型
+- sports_score_list 当前无真实数据源，仅使用本地 fixture
 - 每次点击"生成 UI"会销毁旧 Surface 并创建新 Surface
 - 未实现自定义组件注册（Markdown、Lottie、Chart 等需要手动注册，Demo 默认只使用 SDK 22 种内置组件）
 - 日志区域仅在 App 内展示，不持久化

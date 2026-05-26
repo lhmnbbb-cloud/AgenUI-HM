@@ -1,0 +1,18 @@
+{
+  "requestId": "nba_partial",
+  "cardType": "sports_score_list",
+  "title": "NBA 今日赛况",
+  "items": [
+    {
+      "status": "final",
+      "startTime": "09:00",
+      "homeTeam": { "name": "湖人", "score": 108 },
+      "awayTeam": { "name": "凯尔特人", "score": 102 }
+    },
+    {
+      "status": "scheduled",
+      "homeTeam": { "name": "雄鹿" },
+      "awayTeam": { "name": "76人" }
+    }
+  ]
+}

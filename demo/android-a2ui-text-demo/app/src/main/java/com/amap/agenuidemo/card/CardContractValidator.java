@@ -51,7 +51,7 @@ public class CardContractValidator {
         } else {
             CardType cardType = CardType.fromKey(cardTypeKey);
             if (cardType == null) {
-                errors.add("Unknown cardType: '" + cardTypeKey + "'. Supported: text_summary, text_list, image_text_list");
+                errors.add("Unknown cardType: '" + cardTypeKey + "'. Supported: text_summary, text_list, image_text_list, sports_score_list");
             } else {
                 validateCardTypeFields(data, cardType, errors, warnings);
             }
@@ -77,6 +77,9 @@ public class CardContractValidator {
                 break;
             case IMAGE_TEXT_LIST:
                 validateImageTextList(data, errors, warnings);
+                break;
+            case SPORTS_SCORE_LIST:
+                validateSportsScoreList(data, errors, warnings);
                 break;
         }
     }
@@ -138,6 +141,73 @@ public class CardContractValidator {
         if (items.length() > 10) {
             warnings.add("image_text_list: items count " + items.length() + " exceeds recommended max 10");
         }
+    }
+
+    private static final java.util.Set<String> KNOWN_STATUSES = java.util.Set.of("final", "live", "scheduled");
+
+    private static void validateSportsScoreList(JSONObject data, List<String> errors, List<String> warnings) {
+        JSONArray items = data.optJSONArray("items");
+        if (items == null) {
+            errors.add("sports_score_list: missing 'items'");
+            return;
+        }
+        // Empty items is valid — renders empty state, not fallback
+        if (items.length() == 0) {
+            return;
+        }
+        for (int i = 0; i < items.length(); i++) {
+            JSONObject item = items.optJSONObject(i);
+            if (item == null) {
+                errors.add("sports_score_list: items[" + i + "] is not a JSON object");
+                continue;
+            }
+
+            // homeTeam.name required
+            JSONObject homeTeam = item.optJSONObject("homeTeam");
+            if (homeTeam == null) {
+                errors.add("sports_score_list: items[" + i + "] missing 'homeTeam'");
+            } else if (homeTeam.optString("name", "").isEmpty()) {
+                errors.add("sports_score_list: items[" + i + "] homeTeam.name is empty");
+            }
+
+            // awayTeam.name required
+            JSONObject awayTeam = item.optJSONObject("awayTeam");
+            if (awayTeam == null) {
+                errors.add("sports_score_list: items[" + i + "] missing 'awayTeam'");
+            } else if (awayTeam.optString("name", "").isEmpty()) {
+                errors.add("sports_score_list: items[" + i + "] awayTeam.name is empty");
+            }
+
+            // Unknown status = warning, not error
+            String status = item.optString("status", "");
+            if (!status.isEmpty() && !KNOWN_STATUSES.contains(status)) {
+                warnings.add("sports_score_list: items[" + i + "] unknown status '" + status + "'");
+            }
+
+            // final/live missing/null/empty score = warning
+            if ("final".equals(status) || "live".equals(status)) {
+                if (homeTeam != null && !hasEffectiveScore(homeTeam)) {
+                    warnings.add("sports_score_list: items[" + i + "] " + status + " game missing homeTeam.score");
+                }
+                if (awayTeam != null && !hasEffectiveScore(awayTeam)) {
+                    warnings.add("sports_score_list: items[" + i + "] " + status + " game missing awayTeam.score");
+                }
+            }
+        }
+        if (items.length() > 20) {
+            warnings.add("sports_score_list: items count " + items.length() + " exceeds recommended max 20");
+        }
+    }
+
+    private static boolean hasEffectiveScore(JSONObject team) {
+        if (!team.has("score") || team.isNull("score")) {
+            return false;
+        }
+        Object val = team.opt("score");
+        if (val instanceof String && ((String) val).isEmpty()) {
+            return false;
+        }
+        return true;
     }
 
     public static class ValidationResult {

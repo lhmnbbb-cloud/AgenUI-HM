@@ -184,4 +184,161 @@ public class CardContractValidatorTest {
         CardContractValidator.ValidationResult result = CardContractValidator.validate(null);
         assertFalse(result.isValid());
     }
+
+    @Test
+    public void validate_validSportsScoreList_returnsValid() throws Exception {
+        String json = new JSONObject()
+                .put("requestId", "nba_001")
+                .put("cardType", "sports_score_list")
+                .put("title", "NBA 今日赛况")
+                .put("items", new JSONArray()
+                        .put(new JSONObject()
+                                .put("status", "final")
+                                .put("homeTeam", new JSONObject().put("name", "湖人").put("score", 108))
+                                .put("awayTeam", new JSONObject().put("name", "凯尔特人").put("score", 102)))
+                        .put(new JSONObject()
+                                .put("status", "scheduled")
+                                .put("homeTeam", new JSONObject().put("name", "雄鹿"))
+                                .put("awayTeam", new JSONObject().put("name", "76人")))
+                        .put(new JSONObject()
+                                .put("status", "live")
+                                .put("homeTeam", new JSONObject().put("name", "勇士").put("score", 85))
+                                .put("awayTeam", new JSONObject().put("name", "掘金").put("score", 78))))
+                .toString();
+
+        CardContractValidator.ValidationResult result = CardContractValidator.validate(json);
+        assertTrue(result.isValid());
+        assertTrue(result.getErrors().isEmpty());
+    }
+
+    @Test
+    public void validate_sportsScoreListEmptyItems_returnsValid() throws Exception {
+        String json = new JSONObject()
+                .put("requestId", "nba_002")
+                .put("cardType", "sports_score_list")
+                .put("title", "NBA 今日赛况")
+                .put("items", new JSONArray())
+                .toString();
+
+        CardContractValidator.ValidationResult result = CardContractValidator.validate(json);
+        assertTrue(result.isValid());
+        assertTrue(result.getErrors().isEmpty());
+    }
+
+    @Test
+    public void validate_sportsScoreListMissingHomeTeamName_returnsInvalid() throws Exception {
+        String json = new JSONObject()
+                .put("requestId", "nba_003")
+                .put("cardType", "sports_score_list")
+                .put("title", "NBA")
+                .put("items", new JSONArray()
+                        .put(new JSONObject()
+                                .put("status", "final")
+                                .put("homeTeam", new JSONObject().put("name", ""))
+                                .put("awayTeam", new JSONObject().put("name", "凯尔特人"))))
+                .toString();
+
+        CardContractValidator.ValidationResult result = CardContractValidator.validate(json);
+        assertFalse(result.isValid());
+        assertTrue(result.getErrors().stream().anyMatch(e -> e.contains("homeTeam.name")));
+    }
+
+    @Test
+    public void validate_sportsScoreListMissingAwayTeamName_returnsInvalid() throws Exception {
+        String json = new JSONObject()
+                .put("requestId", "nba_004")
+                .put("cardType", "sports_score_list")
+                .put("title", "NBA")
+                .put("items", new JSONArray()
+                        .put(new JSONObject()
+                                .put("status", "final")
+                                .put("homeTeam", new JSONObject().put("name", "湖人"))
+                                .put("awayTeam", new JSONObject())))
+                .toString();
+
+        CardContractValidator.ValidationResult result = CardContractValidator.validate(json);
+        assertFalse(result.isValid());
+        assertTrue(result.getErrors().stream().anyMatch(e -> e.contains("awayTeam")));
+    }
+
+    @Test
+    public void validate_sportsScoreListUnknownStatus_returnsWarningButValid() throws Exception {
+        String json = new JSONObject()
+                .put("requestId", "nba_005")
+                .put("cardType", "sports_score_list")
+                .put("title", "NBA")
+                .put("items", new JSONArray()
+                        .put(new JSONObject()
+                                .put("status", "postponed")
+                                .put("homeTeam", new JSONObject().put("name", "湖人"))
+                                .put("awayTeam", new JSONObject().put("name", "凯尔特人"))))
+                .toString();
+
+        CardContractValidator.ValidationResult result = CardContractValidator.validate(json);
+        assertTrue(result.isValid());
+        assertFalse(result.getWarnings().isEmpty());
+        assertTrue(result.getWarnings().stream().anyMatch(w -> w.contains("unknown status")));
+    }
+
+    @Test
+    public void validate_sportsScoreListFinalMissingScore_returnsWarningButValid() throws Exception {
+        String json = new JSONObject()
+                .put("requestId", "nba_006")
+                .put("cardType", "sports_score_list")
+                .put("title", "NBA")
+                .put("items", new JSONArray()
+                        .put(new JSONObject()
+                                .put("status", "final")
+                                .put("homeTeam", new JSONObject().put("name", "勇士"))
+                                .put("awayTeam", new JSONObject().put("name", "掘金"))))
+                .toString();
+
+        CardContractValidator.ValidationResult result = CardContractValidator.validate(json);
+        assertTrue(result.isValid());
+        assertFalse(result.getWarnings().isEmpty());
+        assertTrue(result.getWarnings().stream().anyMatch(w -> w.contains("score")));
+    }
+
+    @Test
+    public void validate_sportsScoreListOverMaxItems_returnsWarningButValid() throws Exception {
+        JSONArray items = new JSONArray();
+        for (int i = 0; i < 25; i++) {
+            items.put(new JSONObject()
+                    .put("status", "scheduled")
+                    .put("homeTeam", new JSONObject().put("name", "TeamA" + i))
+                    .put("awayTeam", new JSONObject().put("name", "TeamB" + i)));
+        }
+        String json = new JSONObject()
+                .put("requestId", "nba_007")
+                .put("cardType", "sports_score_list")
+                .put("title", "NBA")
+                .put("items", items)
+                .toString();
+
+        CardContractValidator.ValidationResult result = CardContractValidator.validate(json);
+        assertTrue(result.isValid());
+        assertFalse(result.getWarnings().isEmpty());
+        assertTrue(result.getWarnings().stream().anyMatch(w -> w.contains("exceeds")));
+    }
+
+    @Test
+    public void validate_sportsScoreListNullScore_returnsWarningButValid() throws Exception {
+        String json = new JSONObject()
+                .put("requestId", "nba_null_score")
+                .put("cardType", "sports_score_list")
+                .put("title", "NBA")
+                .put("items", new JSONArray()
+                        .put(new JSONObject()
+                                .put("status", "final")
+                                .put("homeTeam", new JSONObject().put("name", "湖人").put("score", JSONObject.NULL))
+                                .put("awayTeam", new JSONObject().put("name", "凯尔特人").put("score", ""))))
+                .toString();
+
+        CardContractValidator.ValidationResult result = CardContractValidator.validate(json);
+        assertTrue(result.isValid());
+        assertFalse(result.getWarnings().isEmpty());
+        // Both null and empty string score should produce warnings
+        assertTrue(result.getWarnings().stream().anyMatch(w -> w.contains("homeTeam.score")));
+        assertTrue(result.getWarnings().stream().anyMatch(w -> w.contains("awayTeam.score")));
+    }
 }

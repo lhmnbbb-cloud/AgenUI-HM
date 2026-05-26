@@ -1,0 +1,20 @@
+{
+  "requestId": "nba_warning",
+  "cardType": "sports_score_list",
+  "title": "NBA 今日赛况",
+  "items": [
+    {
+      "gameId": "g001",
+      "status": "postponed",
+      "homeTeam": { "name": "湖人" },
+      "awayTeam": { "name": "凯尔特人" }
+    },
+    {
+      "gameId": "g002",
+      "status": "final",
+      "startTime": "09:00",
+      "homeTeam": { "name": "勇士" },
+      "awayTeam": { "name": "掘金" }
+    }
+  ]
+}

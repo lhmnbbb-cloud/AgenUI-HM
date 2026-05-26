@@ -278,4 +278,204 @@ public class CardTemplateRendererTest {
 
         assertPassesA2uiValidator(result.getMessages());
     }
+
+    @Test
+    public void render_sportsScoreList_returnsValidA2ui() throws Exception {
+        String cardData = new JSONObject()
+                .put("requestId", "nba_render")
+                .put("cardType", "sports_score_list")
+                .put("title", "NBA 今日赛况")
+                .put("subtitle", "2026-05-26")
+                .put("updatedAt", "14:30 更新")
+                .put("items", new JSONArray()
+                        .put(new JSONObject()
+                                .put("status", "final")
+                                .put("summary", "湖人终结连败")
+                                .put("homeTeam", new JSONObject().put("name", "湖人").put("score", 108))
+                                .put("awayTeam", new JSONObject().put("name", "凯尔特人").put("score", 102)))
+                        .put(new JSONObject()
+                                .put("status", "scheduled")
+                                .put("startTime", "19:00")
+                                .put("homeTeam", new JSONObject().put("name", "雄鹿"))
+                                .put("awayTeam", new JSONObject().put("name", "76人"))))
+                .toString();
+
+        CardRenderResult result = CardTemplateRenderer.render(cardData);
+        assertTrue(result.isValid());
+        assertTrue(result.getErrors().isEmpty());
+
+        String[] messages = result.getMessages();
+        assertEquals(3, messages.length);
+
+        // createSurface
+        JSONObject create = new JSONObject(messages[0]);
+        assertEquals("card_nba_render", create.getJSONObject("createSurface").getString("surfaceId"));
+
+        // updateComponents
+        JSONObject update = new JSONObject(messages[1]);
+        JSONArray components = update.getJSONObject("updateComponents").getJSONArray("components");
+
+        // root + title + subtitle + card0(12: card+col+statusRow+statusText+summaryText+scoreRow+awayCol+awayName+awayScore+homeCol+homeName+homeScore) + card1(11: card+col+statusRow+statusText+scoreRow+awayCol+awayName+awayScore+homeCol+homeName+homeScore)
+        // = 3 + 12 + 11 = 26
+        assertEquals(26, components.length());
+
+        // Verify root has title-text, subtitle-text, game_card_0, game_card_1
+        JSONObject root = components.getJSONObject(0);
+        JSONArray rootChildren = root.getJSONArray("children");
+        assertEquals(4, rootChildren.length());
+        assertEquals("title-text", rootChildren.getString(0));
+        assertEquals("subtitle-text", rootChildren.getString(1));
+        assertEquals("game_card_0", rootChildren.getString(2));
+        assertEquals("game_card_1", rootChildren.getString(3));
+
+        // Verify status display for first game (final)
+        JSONObject statusText0 = findComponentById(components, "status_text_0");
+        assertNotNull(statusText0);
+        assertEquals("FINAL", statusText0.getString("text"));
+
+        // Verify score display for first game
+        JSONObject awayScore0 = findComponentById(components, "away_score_0");
+        assertNotNull(awayScore0);
+        assertEquals("102", awayScore0.getString("text"));
+
+        // Verify status display for second game (scheduled with startTime)
+        JSONObject statusText1 = findComponentById(components, "status_text_1");
+        assertNotNull(statusText1);
+        assertEquals("19:00 开赛", statusText1.getString("text"));
+
+        // Verify score display for scheduled game (no score)
+        JSONObject homeScore1 = findComponentById(components, "home_score_1");
+        assertNotNull(homeScore1);
+        assertEquals("-", homeScore1.getString("text"));
+
+        assertPassesA2uiValidator(messages);
+    }
+
+    @Test
+    public void render_sportsScoreListEmptyItems_returnsEmptyState() throws Exception {
+        String cardData = new JSONObject()
+                .put("requestId", "nba_empty")
+                .put("cardType", "sports_score_list")
+                .put("title", "NBA 今日赛况")
+                .put("items", new JSONArray())
+                .toString();
+
+        CardRenderResult result = CardTemplateRenderer.render(cardData);
+        assertTrue(result.isValid());
+
+        JSONObject update = new JSONObject(result.getMessages()[1]);
+        JSONArray components = update.getJSONObject("updateComponents").getJSONArray("components");
+
+        // root + title + empty-card + empty-content + empty-msg = 5
+        assertEquals(5, components.length());
+
+        // Verify empty message text
+        JSONObject emptyMsg = findComponentById(components, "empty-msg");
+        assertNotNull(emptyMsg);
+        assertEquals("今日暂无赛况", emptyMsg.getString("text"));
+
+        assertPassesA2uiValidator(result.getMessages());
+    }
+
+    @Test
+    public void render_sportsScoreListWithWarnings_propagatesWarnings() throws Exception {
+        String cardData = new JSONObject()
+                .put("requestId", "nba_warn")
+                .put("cardType", "sports_score_list")
+                .put("title", "NBA")
+                .put("items", new JSONArray()
+                        .put(new JSONObject()
+                                .put("status", "postponed")
+                                .put("homeTeam", new JSONObject().put("name", "湖人"))
+                                .put("awayTeam", new JSONObject().put("name", "凯尔特人"))))
+                .toString();
+
+        CardRenderResult result = CardTemplateRenderer.render(cardData);
+        assertTrue(result.isValid());
+        assertFalse(result.getWarnings().isEmpty());
+        assertTrue(result.getWarnings().stream().anyMatch(w -> w.contains("unknown status")));
+
+        assertPassesA2uiValidator(result.getMessages());
+    }
+
+    @Test
+    public void render_sportsScoreListPartialFields_rendersGracefully() throws Exception {
+        String cardData = new JSONObject()
+                .put("requestId", "nba_partial")
+                .put("cardType", "sports_score_list")
+                .put("title", "NBA 今日赛况")
+                .put("items", new JSONArray()
+                        .put(new JSONObject()
+                                .put("status", "final")
+                                .put("homeTeam", new JSONObject().put("name", "湖人").put("score", 108))
+                                .put("awayTeam", new JSONObject().put("name", "凯尔特人").put("score", 102)))
+                        .put(new JSONObject()
+                                .put("status", "scheduled")
+                                .put("homeTeam", new JSONObject().put("name", "雄鹿"))
+                                .put("awayTeam", new JSONObject().put("name", "76人"))))
+                .toString();
+
+        CardRenderResult result = CardTemplateRenderer.render(cardData);
+        assertTrue(result.isValid());
+
+        JSONObject update = new JSONObject(result.getMessages()[1]);
+        JSONArray components = update.getJSONObject("updateComponents").getJSONArray("components");
+
+        // No subtitle line (no subtitle/updatedAt fields)
+        JSONObject root = components.getJSONObject(0);
+        JSONArray rootChildren = root.getJSONArray("children");
+        assertEquals(3, rootChildren.length()); // title-text + game_card_0 + game_card_1
+
+        // No summary text for game 0 (summary not provided)
+        assertNull(findComponentById(components, "summary_text_0"));
+
+        // Status for scheduled game without startTime → "待开赛"
+        JSONObject statusText1 = findComponentById(components, "status_text_1");
+        assertNotNull(statusText1);
+        assertEquals("待开赛", statusText1.getString("text"));
+
+        assertPassesA2uiValidator(result.getMessages());
+    }
+
+    @Test
+    public void render_sportsScoreListNullAndEmptyScore_showsDash() throws Exception {
+        String cardData = new JSONObject()
+                .put("requestId", "nba_null")
+                .put("cardType", "sports_score_list")
+                .put("title", "NBA")
+                .put("items", new JSONArray()
+                        .put(new JSONObject()
+                                .put("status", "final")
+                                .put("homeTeam", new JSONObject().put("name", "湖人").put("score", JSONObject.NULL))
+                                .put("awayTeam", new JSONObject().put("name", "凯尔特人").put("score", ""))))
+                .toString();
+
+        CardRenderResult result = CardTemplateRenderer.render(cardData);
+        assertTrue(result.isValid());
+
+        JSONObject update = new JSONObject(result.getMessages()[1]);
+        JSONArray components = update.getJSONObject("updateComponents").getJSONArray("components");
+
+        // null score → "--" for final
+        JSONObject homeScore0 = findComponentById(components, "home_score_0");
+        assertNotNull(homeScore0);
+        assertEquals("--", homeScore0.getString("text"));
+
+        // empty string score → "--" for final
+        JSONObject awayScore0 = findComponentById(components, "away_score_0");
+        assertNotNull(awayScore0);
+        assertEquals("--", awayScore0.getString("text"));
+
+        assertPassesA2uiValidator(result.getMessages());
+    }
+
+    private static JSONObject findComponentById(JSONArray components, String id) throws Exception {
+        for (int i = 0; i < components.length(); i++) {
+            JSONObject comp = components.getJSONObject(i);
+            if (id.equals(comp.optString("id"))) {
+                return comp;
+            }
+        }
+        return null;
+    }
 }

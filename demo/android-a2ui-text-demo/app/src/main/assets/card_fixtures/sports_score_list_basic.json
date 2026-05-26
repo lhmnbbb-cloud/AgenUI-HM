@@ -1,0 +1,32 @@
+{
+  "requestId": "nba_basic",
+  "cardType": "sports_score_list",
+  "title": "NBA 今日赛况",
+  "subtitle": "2026-05-26",
+  "updatedAt": "14:30 更新",
+  "items": [
+    {
+      "gameId": "g001",
+      "status": "final",
+      "startTime": "09:00",
+      "summary": "湖人终结连败",
+      "homeTeam": { "name": "湖人", "score": 108 },
+      "awayTeam": { "name": "凯尔特人", "score": 102 }
+    },
+    {
+      "gameId": "g002",
+      "status": "live",
+      "startTime": "10:30",
+      "summary": "第三节进行中",
+      "homeTeam": { "name": "勇士", "score": 85 },
+      "awayTeam": { "name": "掘金", "score": 78 }
+    },
+    {
+      "gameId": "g003",
+      "status": "scheduled",
+      "startTime": "19:00",
+      "homeTeam": { "name": "雄鹿" },
+      "awayTeam": { "name": "76人" }
+    }
+  ]
+}
