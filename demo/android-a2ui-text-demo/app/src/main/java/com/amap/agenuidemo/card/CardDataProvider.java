@@ -77,7 +77,7 @@ public class CardDataProvider {
         String data = readFixtureData(fixtureName);
         if (data == null) {
             return new CardRenderResult(false, null,
-                    List.of("Cannot read fixture: " + fixtureName));
+                    List.of("Cannot read fixture: " + fixtureName), new ArrayList<>());
         }
         return CardTemplateRenderer.render(data);
     }

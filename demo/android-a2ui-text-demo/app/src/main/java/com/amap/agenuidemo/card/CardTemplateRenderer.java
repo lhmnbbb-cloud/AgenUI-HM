@@ -51,7 +51,7 @@ public class CardTemplateRenderer {
                 default:
                     return renderFallback(cardDataJson, List.of("Unsupported cardType: " + cardType.getKey()));
             }
-            return new CardRenderResult(true, messages, new ArrayList<>());
+            return new CardRenderResult(true, messages, new ArrayList<>(), validation.getWarnings());
         } catch (Exception e) {
             return renderFallback(cardDataJson, List.of("Render failed: " + e.getMessage()));
         }
@@ -332,7 +332,7 @@ public class CardTemplateRenderer {
 
             return new CardRenderResult(false,
                     new String[]{createSurface.toString(), updateComponents.toString(), "{}"},
-                    errors);
+                    errors, new ArrayList<>());
         } catch (Exception e) {
             // Absolute minimal fallback
             return new CardRenderResult(false,
@@ -341,7 +341,7 @@ public class CardTemplateRenderer {
                             "{\"version\":\"v0.9\",\"updateComponents\":{\"surfaceId\":\"card_fallback\",\"components\":[{\"id\":\"root\",\"component\":\"Text\",\"text\":\"Error: " + errorSummary + "\"}]}}",
                             "{}"
                     },
-                    errors);
+                    errors, new ArrayList<>());
         }
     }
 

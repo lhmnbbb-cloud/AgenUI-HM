@@ -6,7 +6,21 @@ import org.junit.Test;
 
 import static org.junit.Assert.*;
 
+import com.amap.agenuidemo.A2uiJsonValidator;
+
 public class CardTemplateRendererTest {
+
+    /**
+     * Helper: asserts that all three A2UI messages pass A2uiJsonValidator.
+     * This locks in the guarantee that template output is always valid A2UI.
+     */
+    private void assertPassesA2uiValidator(String[] messages) {
+        A2uiJsonValidator.ValidationResult vr =
+                A2uiJsonValidator.validate(messages[0], messages[1], messages[2]);
+        assertTrue("Template output must pass A2uiJsonValidator. Errors: "
+                        + vr.getFormattedReport(),
+                vr.isValid());
+    }
 
     @Test
     public void render_textSummary_returnsValidA2ui() throws Exception {
@@ -48,6 +62,8 @@ public class CardTemplateRendererTest {
 
         // 3rd message should be empty data model
         assertEquals("{}", messages[2]);
+
+        assertPassesA2uiValidator(messages);
     }
 
     @Test
@@ -94,6 +110,8 @@ public class CardTemplateRendererTest {
         assertEquals("天气", components.getJSONObject(3).getString("text"));
         assertEquals("导航", components.getJSONObject(4).getString("text"));
         assertEquals("语音", components.getJSONObject(5).getString("text"));
+
+        assertPassesA2uiValidator(result.getMessages());
     }
 
     @Test
@@ -139,6 +157,8 @@ public class CardTemplateRendererTest {
         }
         assertNotNull(image);
         assertEquals("https://example.com/1.jpg", image.getString("src"));
+
+        assertPassesA2uiValidator(result.getMessages());
     }
 
     @Test
@@ -161,6 +181,8 @@ public class CardTemplateRendererTest {
         JSONObject update = new JSONObject(messages[1]);
         JSONArray components = update.getJSONObject("updateComponents").getJSONArray("components");
         assertEquals("root", components.getJSONObject(0).getString("id"));
+
+        assertPassesA2uiValidator(messages);
     }
 
     @Test
@@ -181,6 +203,8 @@ public class CardTemplateRendererTest {
         assertEquals(3, messages.length);
         JSONObject update = new JSONObject(messages[1]);
         assertTrue(update.getJSONObject("updateComponents").getJSONArray("components").length() > 0);
+
+        assertPassesA2uiValidator(messages);
     }
 
     @Test
@@ -200,6 +224,8 @@ public class CardTemplateRendererTest {
         // updateComponents must use the same surfaceId
         JSONObject update = new JSONObject(result.getMessages()[1]);
         assertEquals(surfaceId, update.getJSONObject("updateComponents").getString("surfaceId"));
+
+        assertPassesA2uiValidator(result.getMessages());
     }
 
     @Test
@@ -209,5 +235,47 @@ public class CardTemplateRendererTest {
         JSONObject create = new JSONObject(result.getMessages()[0]);
         String surfaceId = create.getJSONObject("createSurface").getString("surfaceId");
         assertEquals("card_fallback", surfaceId);
+
+        assertPassesA2uiValidator(result.getMessages());
+    }
+
+    @Test
+    public void render_textSummaryWithWarnings_propagatesWarnings() throws Exception {
+        // text_list with empty text in item should produce a warning
+        String cardData = new JSONObject()
+                .put("requestId", "test_warn")
+                .put("cardType", "text_list")
+                .put("title", "警告测试")
+                .put("items", new JSONArray()
+                        .put(new JSONObject().put("text", "正常项"))
+                        .put(new JSONObject().put("text", "")))
+                .toString();
+
+        CardRenderResult result = CardTemplateRenderer.render(cardData);
+        assertTrue(result.isValid());
+        assertFalse(result.getWarnings().isEmpty());
+        assertTrue(result.getWarnings().stream().anyMatch(w -> w.contains("empty") && w.contains("text")));
+
+        assertPassesA2uiValidator(result.getMessages());
+    }
+
+    @Test
+    public void render_imageTextListMissingSubtitle_producesWarning() throws Exception {
+        String cardData = new JSONObject()
+                .put("requestId", "test_warn_img")
+                .put("cardType", "image_text_list")
+                .put("title", "带警告的图文")
+                .put("items", new JSONArray()
+                        .put(new JSONObject()
+                                .put("imageUrl", "https://example.com/1.jpg")
+                                .put("title", "有标题")))
+                .toString();
+
+        CardRenderResult result = CardTemplateRenderer.render(cardData);
+        assertTrue(result.isValid());
+        assertFalse(result.getWarnings().isEmpty());
+        assertTrue(result.getWarnings().stream().anyMatch(w -> w.contains("subtitle")));
+
+        assertPassesA2uiValidator(result.getMessages());
     }
 }

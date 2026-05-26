@@ -421,9 +421,15 @@ public class TextDemoActivity extends AppCompatActivity {
 
             if (!result.isValid()) {
                 addLog("Card contract validation failed: " + result.getFormattedErrors());
+                lastError = result.getFormattedReport();
                 tvValidationBadge.setText("FALLBACK");
                 tvValidationBadge.setTextColor(0xFFCC6600);
             } else {
+                String warns = result.getFormattedWarnings();
+                if (!warns.isEmpty()) {
+                    addLog("Card validation warnings: " + warns);
+                    lastError = warns;
+                }
                 tvValidationBadge.setText("PASS");
                 tvValidationBadge.setTextColor(0xFF008800);
             }
