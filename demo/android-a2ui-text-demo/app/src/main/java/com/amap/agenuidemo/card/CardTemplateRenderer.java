@@ -1,6 +1,7 @@
 package com.amap.agenuidemo.card;
 
 import com.amap.agenuidemo.card.template.SportsScoreListTemplate;
+import com.amap.agenuidemo.card.template.WeatherSummaryTemplate;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -52,6 +53,9 @@ public class CardTemplateRenderer {
                     break;
                 case SPORTS_SCORE_LIST:
                     messages = SportsScoreListTemplate.render(data);
+                    break;
+                case WEATHER_SUMMARY:
+                    messages = WeatherSummaryTemplate.render(data);
                     break;
                 default:
                     return renderFallback(cardDataJson, List.of("Unsupported cardType: " + cardType.getKey()));

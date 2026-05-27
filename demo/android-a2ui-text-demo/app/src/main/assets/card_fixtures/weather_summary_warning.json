@@ -1,0 +1,11 @@
+{
+  "requestId": "weather_warning",
+  "cardType": "weather_summary",
+  "title": "天气",
+  "current": {
+    "condition": "多云",
+    "high": 25,
+    "low": 15
+  },
+  "tips": ["带伞", "注意防晒", "多喝水", "减少外出", "关好窗户", "注意路况"]
+}

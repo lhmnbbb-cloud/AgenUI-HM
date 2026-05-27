@@ -1,0 +1,6 @@
+{
+  "requestId": "weather_minimal",
+  "cardType": "weather_summary",
+  "title": "天气",
+  "current": {}
+}

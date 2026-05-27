@@ -20,6 +20,7 @@ CardData 协议定义 AI 组输出和 Android 组校验/渲染之间的结构化
 | `text_list` | — | 待补充 | 文字列表卡片 |
 | `image_text_list` | — | 待补充 | 图文列表卡片 |
 | `sports_score_list` | `0.1` | [sports_score_list_v0.1.md](sports_score_list_v0.1.md) | NBA 赛况卡片 |
+| `weather_summary` | `0.1` | [weather_summary_v0.1.md](weather_summary_v0.1.md) | 天气摘要卡片 |
 
 ## 数据流
 

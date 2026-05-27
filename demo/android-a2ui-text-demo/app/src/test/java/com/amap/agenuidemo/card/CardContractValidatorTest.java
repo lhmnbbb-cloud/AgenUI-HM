@@ -341,4 +341,165 @@ public class CardContractValidatorTest {
         assertTrue(result.getWarnings().stream().anyMatch(w -> w.contains("homeTeam.score")));
         assertTrue(result.getWarnings().stream().anyMatch(w -> w.contains("awayTeam.score")));
     }
+
+    @Test
+    public void validate_validWeatherSummary_returnsValid() throws Exception {
+        String json = new JSONObject()
+                .put("requestId", "weather_001")
+                .put("cardType", "weather_summary")
+                .put("title", "今日天气")
+                .put("location", "上海")
+                .put("updatedAt", "14:30 更新")
+                .put("current", new JSONObject()
+                        .put("condition", "晴转多云")
+                        .put("temperature", 26)
+                        .put("high", 30)
+                        .put("low", 18)
+                        .put("airQuality", "良")
+                        .put("humidity", "65%")
+                        .put("wind", "东南风 3级"))
+                .put("tips", new JSONArray()
+                        .put("紫外线较强，注意防晒")
+                        .put("早晚温差较大，注意添衣"))
+                .toString();
+
+        CardContractValidator.ValidationResult result = CardContractValidator.validate(json);
+        assertTrue(result.isValid());
+        assertTrue(result.getErrors().isEmpty());
+        assertTrue(result.getWarnings().isEmpty());
+    }
+
+    @Test
+    public void validate_weatherSummaryMissingCurrent_returnsInvalid() throws Exception {
+        String json = new JSONObject()
+                .put("requestId", "weather_002")
+                .put("cardType", "weather_summary")
+                .put("title", "天气")
+                .toString();
+
+        CardContractValidator.ValidationResult result = CardContractValidator.validate(json);
+        assertFalse(result.isValid());
+        assertTrue(result.getErrors().stream().anyMatch(e -> e.contains("current")));
+    }
+
+    @Test
+    public void validate_weatherSummaryMissingLocation_returnsWarning() throws Exception {
+        String json = new JSONObject()
+                .put("requestId", "weather_003")
+                .put("cardType", "weather_summary")
+                .put("title", "天气")
+                .put("current", new JSONObject()
+                        .put("condition", "晴")
+                        .put("temperature", 26))
+                .toString();
+
+        CardContractValidator.ValidationResult result = CardContractValidator.validate(json);
+        assertTrue(result.isValid());
+        assertTrue(result.getWarnings().stream().anyMatch(w -> w.contains("location")));
+    }
+
+    @Test
+    public void validate_weatherSummaryLocationInCurrentNotTopLevel_stillWarns() throws Exception {
+        // location is a top-level field; putting it inside current should NOT satisfy the warning
+        String json = new JSONObject()
+                .put("requestId", "weather_loc_level")
+                .put("cardType", "weather_summary")
+                .put("title", "天气")
+                .put("current", new JSONObject()
+                        .put("condition", "晴")
+                        .put("temperature", 26)
+                        .put("location", "上海"))
+                .toString();
+
+        CardContractValidator.ValidationResult result = CardContractValidator.validate(json);
+        assertTrue(result.isValid());
+        // Still warns because location is checked at top level, not inside current
+        assertTrue(result.getWarnings().stream().anyMatch(w -> w.contains("location")));
+    }
+
+    @Test
+    public void validate_weatherSummaryMissingTemperature_returnsWarning() throws Exception {
+        String json = new JSONObject()
+                .put("requestId", "weather_004")
+                .put("cardType", "weather_summary")
+                .put("title", "天气")
+                .put("location", "上海")
+                .put("current", new JSONObject()
+                        .put("condition", "晴"))
+                .toString();
+
+        CardContractValidator.ValidationResult result = CardContractValidator.validate(json);
+        assertTrue(result.isValid());
+        assertTrue(result.getWarnings().stream().anyMatch(w -> w.contains("temperature")));
+    }
+
+    @Test
+    public void validate_weatherSummaryMissingCondition_returnsWarning() throws Exception {
+        String json = new JSONObject()
+                .put("requestId", "weather_005")
+                .put("cardType", "weather_summary")
+                .put("title", "天气")
+                .put("current", new JSONObject()
+                        .put("temperature", 26))
+                .toString();
+
+        CardContractValidator.ValidationResult result = CardContractValidator.validate(json);
+        assertTrue(result.isValid());
+        assertTrue(result.getWarnings().stream().anyMatch(w -> w.contains("condition")));
+    }
+
+    @Test
+    public void validate_weatherSummaryTipsNotArray_returnsInvalid() throws Exception {
+        String json = new JSONObject()
+                .put("requestId", "weather_006")
+                .put("cardType", "weather_summary")
+                .put("title", "天气")
+                .put("current", new JSONObject().put("condition", "晴"))
+                .put("tips", "not an array")
+                .toString();
+
+        CardContractValidator.ValidationResult result = CardContractValidator.validate(json);
+        assertFalse(result.isValid());
+        assertTrue(result.getErrors().stream().anyMatch(e -> e.contains("tips")));
+    }
+
+    @Test
+    public void validate_weatherSummaryTipsOverMax_returnsWarning() throws Exception {
+        JSONArray tips = new JSONArray();
+        for (int i = 0; i < 6; i++) {
+            tips.put("tip_" + i);
+        }
+        String json = new JSONObject()
+                .put("requestId", "weather_007")
+                .put("cardType", "weather_summary")
+                .put("title", "天气")
+                .put("location", "上海")
+                .put("current", new JSONObject()
+                        .put("condition", "晴")
+                        .put("temperature", 26))
+                .put("tips", tips)
+                .toString();
+
+        CardContractValidator.ValidationResult result = CardContractValidator.validate(json);
+        assertTrue(result.isValid());
+        assertFalse(result.getWarnings().isEmpty());
+        assertTrue(result.getWarnings().stream().anyMatch(w -> w.contains("exceeds")));
+    }
+
+    @Test
+    public void validate_weatherSummaryMinimalCurrent_returnsValidWithWarnings() throws Exception {
+        String json = new JSONObject()
+                .put("requestId", "weather_008")
+                .put("cardType", "weather_summary")
+                .put("title", "天气")
+                .put("current", new JSONObject())
+                .toString();
+
+        CardContractValidator.ValidationResult result = CardContractValidator.validate(json);
+        assertTrue(result.isValid());
+        assertEquals(3, result.getWarnings().size());
+        assertTrue(result.getWarnings().stream().anyMatch(w -> w.contains("location")));
+        assertTrue(result.getWarnings().stream().anyMatch(w -> w.contains("temperature")));
+        assertTrue(result.getWarnings().stream().anyMatch(w -> w.contains("condition")));
+    }
 }

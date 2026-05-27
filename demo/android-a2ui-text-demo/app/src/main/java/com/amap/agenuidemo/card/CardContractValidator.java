@@ -51,7 +51,7 @@ public class CardContractValidator {
         } else {
             CardType cardType = CardType.fromKey(cardTypeKey);
             if (cardType == null) {
-                errors.add("Unknown cardType: '" + cardTypeKey + "'. Supported: text_summary, text_list, image_text_list, sports_score_list");
+                errors.add("Unknown cardType: '" + cardTypeKey + "'. Supported: text_summary, text_list, image_text_list, sports_score_list, weather_summary");
             } else {
                 validateCardTypeFields(data, cardType, errors, warnings);
             }
@@ -80,6 +80,9 @@ public class CardContractValidator {
                 break;
             case SPORTS_SCORE_LIST:
                 validateSportsScoreList(data, errors, warnings);
+                break;
+            case WEATHER_SUMMARY:
+                validateWeatherSummary(data, errors, warnings);
                 break;
         }
     }
@@ -196,6 +199,36 @@ public class CardContractValidator {
         }
         if (items.length() > 20) {
             warnings.add("sports_score_list: items count " + items.length() + " exceeds recommended max 20");
+        }
+    }
+
+    private static void validateWeatherSummary(JSONObject data, List<String> errors, List<String> warnings) {
+        // current is required and must be a JSONObject
+        JSONObject current = data.optJSONObject("current");
+        if (current == null) {
+            errors.add("weather_summary: missing 'current'");
+            return;
+        }
+
+        // location is a top-level field, not inside current
+        if (!data.has("location") || data.isNull("location") || data.optString("location", "").isEmpty()) {
+            warnings.add("weather_summary: missing 'location'");
+        }
+        if (!current.has("temperature") || current.isNull("temperature")) {
+            warnings.add("weather_summary: missing 'temperature'");
+        }
+        if (!current.has("condition") || current.isNull("condition") || current.optString("condition", "").isEmpty()) {
+            warnings.add("weather_summary: missing 'condition'");
+        }
+
+        // tips: if present, must be JSONArray
+        if (data.has("tips")) {
+            JSONArray tips = data.optJSONArray("tips");
+            if (tips == null) {
+                errors.add("weather_summary: 'tips' is not a JSON array");
+            } else if (tips.length() > 5) {
+                warnings.add("weather_summary: tips count " + tips.length() + " exceeds recommended max 5");
+            }
         }
     }
 

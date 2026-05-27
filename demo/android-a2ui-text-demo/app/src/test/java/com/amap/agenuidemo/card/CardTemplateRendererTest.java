@@ -478,4 +478,153 @@ public class CardTemplateRendererTest {
         }
         return null;
     }
+
+    @Test
+    public void render_weatherSummary_returnsValidA2ui() throws Exception {
+        String cardData = new JSONObject()
+                .put("requestId", "weather_render")
+                .put("cardType", "weather_summary")
+                .put("title", "今日天气")
+                .put("location", "上海")
+                .put("updatedAt", "14:30 更新")
+                .put("current", new JSONObject()
+                        .put("condition", "晴转多云")
+                        .put("temperature", 26)
+                        .put("high", 30)
+                        .put("low", 18)
+                        .put("airQuality", "良")
+                        .put("humidity", "65%")
+                        .put("wind", "东南风 3级"))
+                .put("tips", new JSONArray()
+                        .put("紫外线较强，注意防晒")
+                        .put("早晚温差较大，注意添衣"))
+                .toString();
+
+        CardRenderResult result = CardTemplateRenderer.render(cardData);
+        assertTrue(result.isValid());
+        assertTrue(result.getErrors().isEmpty());
+
+        String[] messages = result.getMessages();
+        assertEquals(3, messages.length);
+
+        JSONObject create = new JSONObject(messages[0]);
+        assertEquals("card_weather_render", create.getJSONObject("createSurface").getString("surfaceId"));
+
+        JSONObject update = new JSONObject(messages[1]);
+        JSONArray components = update.getJSONObject("updateComponents").getJSONArray("components");
+        assertEquals(18, components.length());
+
+        assertPassesA2uiValidator(messages);
+    }
+
+    @Test
+    public void render_weatherSummaryPartial_rendersGracefully() throws Exception {
+        String cardData = new JSONObject()
+                .put("requestId", "weather_partial")
+                .put("cardType", "weather_summary")
+                .put("title", "天气")
+                .put("current", new JSONObject()
+                        .put("condition", "晴")
+                        .put("temperature", 28))
+                .toString();
+
+        CardRenderResult result = CardTemplateRenderer.render(cardData);
+        assertTrue(result.isValid());
+
+        JSONObject update = new JSONObject(result.getMessages()[1]);
+        JSONArray components = update.getJSONObject("updateComponents").getJSONArray("components");
+        assertEquals(7, components.length());
+
+        assertNull(findComponentById(components, "location-time-text"));
+        assertNull(findComponentById(components, "highlow-row"));
+        assertNull(findComponentById(components, "detail-row"));
+
+        assertPassesA2uiValidator(result.getMessages());
+    }
+
+    @Test
+    public void render_weatherSummaryWithWarnings_propagatesWarnings() throws Exception {
+        String cardData = new JSONObject()
+                .put("requestId", "weather_warn")
+                .put("cardType", "weather_summary")
+                .put("title", "天气")
+                .put("current", new JSONObject()
+                        .put("condition", "多云")
+                        .put("high", 25)
+                        .put("low", 15))
+                .put("tips", new JSONArray()
+                        .put("带伞").put("防晒").put("喝水").put("少外出").put("关窗").put("注意路况"))
+                .toString();
+
+        CardRenderResult result = CardTemplateRenderer.render(cardData);
+        assertTrue(result.isValid());
+        assertFalse(result.getWarnings().isEmpty());
+        assertTrue(result.getWarnings().stream().anyMatch(w -> w.contains("location")));
+        assertTrue(result.getWarnings().stream().anyMatch(w -> w.contains("temperature")));
+        assertTrue(result.getWarnings().stream().anyMatch(w -> w.contains("exceeds")));
+
+        assertPassesA2uiValidator(result.getMessages());
+    }
+
+    @Test
+    public void render_weatherSummaryHighLowStringWithDegree_noDuplicate() throws Exception {
+        String cardData = new JSONObject()
+                .put("requestId", "weather_hl_degree")
+                .put("cardType", "weather_summary")
+                .put("title", "天气")
+                .put("current", new JSONObject()
+                        .put("condition", "晴")
+                        .put("temperature", 26)
+                        .put("high", "30°")
+                        .put("low", "18°"))
+                .toString();
+
+        CardRenderResult result = CardTemplateRenderer.render(cardData);
+        assertTrue(result.isValid());
+
+        JSONObject update = new JSONObject(result.getMessages()[1]);
+        JSONArray components = update.getJSONObject("updateComponents").getJSONArray("components");
+
+        JSONObject high = findComponentById(components, "high-text");
+        assertNotNull(high);
+        assertEquals("最高 30°", high.getString("text"));
+
+        JSONObject low = findComponentById(components, "low-text");
+        assertNotNull(low);
+        assertEquals("最低 18°", low.getString("text"));
+
+        assertPassesA2uiValidator(result.getMessages());
+    }
+
+    @Test
+    public void render_weatherSummaryMinimalData_showsPlaceholder() throws Exception {
+        String cardData = new JSONObject()
+                .put("requestId", "weather_minimal")
+                .put("cardType", "weather_summary")
+                .put("title", "天气")
+                .put("current", new JSONObject())
+                .toString();
+
+        CardRenderResult result = CardTemplateRenderer.render(cardData);
+        assertTrue(result.isValid());
+
+        JSONObject update = new JSONObject(result.getMessages()[1]);
+        JSONArray components = update.getJSONObject("updateComponents").getJSONArray("components");
+        // root + title + card + content + primary-row + condition-text(placeholder) = 6
+        assertEquals(6, components.length());
+
+        assertNull(findComponentById(components, "location-time-text"));
+        assertNull(findComponentById(components, "highlow-row"));
+        assertNull(findComponentById(components, "detail-row"));
+        assertNull(findComponentById(components, "tips-col"));
+
+        // Placeholder text when both condition and temperature are empty
+        JSONObject condition = findComponentById(components, "condition-text");
+        assertNotNull(condition);
+        assertEquals("暂无天气数据", condition.getString("text"));
+
+        assertNull(findComponentById(components, "temperature-text"));
+
+        assertPassesA2uiValidator(result.getMessages());
+    }
 }

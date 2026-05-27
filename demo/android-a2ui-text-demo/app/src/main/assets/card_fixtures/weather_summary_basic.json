@@ -1,0 +1,17 @@
+{
+  "requestId": "weather_basic",
+  "cardType": "weather_summary",
+  "title": "今日天气",
+  "location": "上海",
+  "updatedAt": "14:30 更新",
+  "current": {
+    "condition": "晴转多云",
+    "temperature": 26,
+    "high": 30,
+    "low": 18,
+    "airQuality": "良",
+    "humidity": "65%",
+    "wind": "东南风 3级"
+  },
+  "tips": ["紫外线较强，注意防晒", "早晚温差较大，注意添衣"]
+}

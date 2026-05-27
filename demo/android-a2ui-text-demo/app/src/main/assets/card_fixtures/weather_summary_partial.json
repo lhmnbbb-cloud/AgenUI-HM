@@ -1,0 +1,9 @@
+{
+  "requestId": "weather_partial",
+  "cardType": "weather_summary",
+  "title": "天气",
+  "current": {
+    "condition": "晴",
+    "temperature": 28
+  }
+}

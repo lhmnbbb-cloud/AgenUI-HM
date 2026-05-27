@@ -72,7 +72,7 @@ CardData JSON (结构化卡片数据)
 
 CardData 不经过 `A2uiMessageNormalizer`，模板输出已是合法 A2UI。
 
-支持四种 cardType：
+支持五种 cardType：
 
 | cardType | 必填字段 | 说明 |
 |---|---|---|
@@ -80,6 +80,7 @@ CardData 不经过 `A2uiMessageNormalizer`，模板输出已是合法 A2UI。
 | `text_list` | requestId, cardType, title, items[] | 文字列表卡片（每个 item 含 text） |
 | `image_text_list` | requestId, cardType, title, items[] | 图文列表卡片（每个 item 含 imageUrl, title, subtitle） |
 | `sports_score_list` | requestId, cardType, title, items[] | NBA 赛况卡片（每个 item 含 status, homeTeam{name}, awayTeam{name}） |
+| `weather_summary` | requestId, cardType, title, current{} | 天气摘要卡片（current 含 condition, temperature 等） |
 
 `sports_score_list` 字段说明：
 
@@ -94,6 +95,22 @@ CardData 不经过 `A2uiMessageNormalizer`，模板输出已是合法 A2UI。
 | `items[].summary` | 可选 | 比赛摘要 |
 | `items[].startTime` | 可选 | 开赛时间（如 "19:00"） |
 
+`weather_summary` 字段说明：
+
+| 字段 | 级别 | 说明 |
+|---|---|---|
+| `current` | 必填 | JSONObject，当前天气信息（允许 `{}`，产生 warning） |
+| `current.condition` | 建议填充 | 天气状况（如 "晴转多云"），缺失产生 warning |
+| `current.temperature` | 建议填充 | 温度（推荐 number 如 `26`），缺失产生 warning |
+| `current.high` | 可选 | 最高温度 |
+| `current.low` | 可选 | 最低温度 |
+| `current.airQuality` | 可选 | 空气质量（如 "良"） |
+| `current.humidity` | 可选 | 湿度（如 "65%"） |
+| `current.wind` | 可选 | 风力信息（如 "东南风 3级"） |
+| `location` | 可选 | 位置名称（如 "上海"） |
+| `updatedAt` | 可选 | 更新时间（如 "14:30 更新"） |
+| `tips` | 可选 | JSONArray 天气提示，建议不超过 5 条 |
+
 Card Fixture 样例：
 
 | 文件 | cardType | 说明 |
@@ -107,6 +124,10 @@ Card Fixture 样例：
 | `sports_score_list_empty.json` | sports_score_list | 空赛况（渲染空状态，非 fallback） |
 | `sports_score_list_partial.json` | sports_score_list | 缺少可选字段（summary、startTime） |
 | `sports_score_list_warning.json` | sports_score_list | unknown status + final 缺 score（warning 但仍有效） |
+| `weather_summary_basic.json` | weather_summary | 完整天气数据（condition + temperature + high/low + 详情 + tips） |
+| `weather_summary_partial.json` | weather_summary | 仅 condition + temperature（无可选字段） |
+| `weather_summary_warning.json` | weather_summary | 缺 location/temperature，6 tips（3 warnings） |
+| `weather_summary_minimal.json` | weather_summary | current:{} 仅（3 warnings，仍有效） |
 
 CardData 示例：
 
@@ -142,6 +163,28 @@ CardData 示例：
 ```
 
 此模式用于模拟 AI 组直接传入 CardData JSON 的场景，验证端到端管线时不依赖本地 fixture 文件。
+
+weather_summary 示例（可直接复制到输入框）：
+
+```json
+{
+  "requestId": "weather_basic",
+  "cardType": "weather_summary",
+  "title": "今日天气",
+  "location": "上海",
+  "updatedAt": "14:30 更新",
+  "current": {
+    "condition": "晴转多云",
+    "temperature": 26,
+    "high": 30,
+    "low": 18,
+    "airQuality": "良",
+    "humidity": "65%",
+    "wind": "东南风 3级"
+  },
+  "tips": ["紫外线较强，注意防晒", "早晚温差较大，注意添衣"]
+}
+```
 
 sports_score_list 示例（可直接复制到输入框）：
 
@@ -380,7 +423,11 @@ demo/android-a2ui-text-demo/
 │       │       ├── sports_score_list_basic.json
 │       │       ├── sports_score_list_empty.json
 │       │       ├── sports_score_list_partial.json
-│       │       └── sports_score_list_warning.json
+│       │       ├── sports_score_list_warning.json
+│       │       ├── weather_summary_basic.json
+│       │       ├── weather_summary_partial.json
+│       │       ├── weather_summary_warning.json
+│       │       └── weather_summary_minimal.json
 │       ├── java/com/amap/agenuidemo/
 │       │   ├── TextDemoActivity.java           # 主 Activity
 │       │   ├── UiGenerationProvider.java        # UI 生成接口
@@ -400,7 +447,8 @@ demo/android-a2ui-text-demo/
 │       │       ├── CardRenderResult.java        # 渲染结果
 │       │       ├── CardDataProvider.java        # 卡片 Fixture 数据源
 │       │       └── template/
-│       │           └── SportsScoreListTemplate.java  # sports_score_list 模板
+│       │           ├── SportsScoreListTemplate.java  # sports_score_list 模板
+│       │           └── WeatherSummaryTemplate.java   # weather_summary 模板
 │       └── res/
 │           ├── layout/activity_text_demo.xml
 │           └── values/
@@ -447,8 +495,9 @@ public class RomAiUiGenerationProvider implements UiGenerationProvider {
 
 - MockUiGenerationProvider 仅基于关键词匹配，不做自然语言理解
 - FixtureUiGenerationProvider 不支持动态数据绑定
-- Card Fixture 当前支持 text_summary、text_list、image_text_list、sports_score_list 四种卡片类型
+- Card Fixture 当前支持 text_summary、text_list、image_text_list、sports_score_list、weather_summary 五种卡片类型
 - sports_score_list 当前无真实数据源，仅使用本地 fixture
+- weather_summary 当前无真实数据源，仅使用本地 fixture
 - 每次点击"生成 UI"会销毁旧 Surface 并创建新 Surface
 - 未实现自定义组件注册（Markdown、Lottie、Chart 等需要手动注册，Demo 默认只使用 SDK 22 种内置组件）
 - 日志区域仅在 App 内展示，不持久化
