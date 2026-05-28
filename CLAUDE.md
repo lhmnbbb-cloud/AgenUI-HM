@@ -210,6 +210,50 @@ Android Function Call 参考：
   python .\tools\llm-proxy\test_sse_endpoint.py
   ```
 
+## AGenUI Android Demo 关键约定
+
+适用于 `demo/android-a2ui-text-demo/`。完整里程碑文档见 `docs/demo-milestone-card-http-v0.1.md`。
+
+### 推荐链路
+
+**正式推荐链路是 AI 组输出 CardData，Android 本地模板确定性生成 A2UI：**
+
+```
+用户输入 → AI 组服务 → CardData JSON → CardContractValidator → CardTemplateRenderer → A2uiJsonValidator → SurfaceManager → 渲染
+```
+
+LLM 直接生成 A2UI 仅用于探索验证，不作为正式稳定链路。原因见 `docs/demo-milestone-card-http-v0.1.md` 第 4 节。
+
+### CardData 校验和渲染规则
+
+- **Card HTTP 接口返回 CardData，不返回 A2UI。** 服务端 unknown intent 返回 HTTP 400 + `debug.matchedIntent=unknown`，不默认返回某个卡片类型。
+- **CardData 必须先过 `CardContractValidator`。** 校验失败触发 fallback 卡片，不允许空白 UI。ERROR 阻断渲染，WARNING 不阻断。
+- **模板输出的 A2UI 必须过 `A2uiJsonValidator`。** 确保模板输出始终是合法 A2UI 协议。
+- **Card Fixture / Card JSON / Card HTTP 输出不用走 `A2uiMessageNormalizer`。** 模板输出已是合法 A2UI，归一化仅用于 LLM 直接生成 A2UI 的场景。
+
+### CardData 协议字段易错点
+
+- **`sports_score_list` 的 `homeTeam`/`awayTeam` 必须是对象**（`{"name": "湖人", "score": 108}`），不能是字符串（`"湖人"`）。写成字符串会导致 `CardContractValidator` 报 ERROR 并触发 fallback。
+- **`weather_summary` 的 `location` 是顶层字段**，不在 `current` 内。写在 `current` 里不会报错但会导致 location-time 行缺失。
+- **`sports_score_list` 的 `status` 使用英文枚举值**（`final`/`live`/`scheduled`），不是中文（`已结束`/`进行中`）。中文值会被视为 unknown status，产生 warning 但仍渲染。
+- **`sports_score_list` 的 `items: []` 是合法空状态**，不触发 fallback；**`weather_summary` 的 `current: {}` 也是合法的**，但会产生 warning。
+
+### Provider 切换 UI 规则
+
+`switchProvider()` 中必须**先隐藏所有条件控件，再按 case 显示**。不能只在某个 case 里隐藏其他 case 的控件——遗漏一个 case 就会出现控件残留。
+
+条件控件列表：`spinnerFixture`、`spinnerCardFixture`、`etLlmUrl`、`etProxyToken`、`etCardHttpUrl`。
+
+### 常见坑
+
+| 问题 | 现象 | 原因 | 排查 |
+|------|------|------|------|
+| PASS 但 UI 空白 | 徽章 PASS、状态 rendered，界面空白 | 组件树无根组件 / 组件高度为 0 / C++ SDK 静默丢弃 | 检查 A2UI JSON 组件树结构，确认根组件未被引用、surfaceId 一致，`adb logcat` 看 C++ 日志 |
+| 协议字段层级错 | 本应渲染的卡片走了 fallback | `homeTeam: "湖人"` 而非 `homeTeam: {name: "湖人"}`；`location` 写在 `current` 内而非顶层 | 查看 Debug 面板错误信息前缀（`sports_score_list:` / `weather_summary:`） |
+| Server 返回结构和协议不一致 | Card HTTP 拿到的数据渲染异常 | Mock server 的 MOCK_XXX 数据常量与 CardContractValidator 要求的字段结构不同步 | 用 `test_card_server.py` 单独测 server，对比协议文档 `docs/card-contracts/` |
+| Provider 切换控件残留 | 切换后仍显示前一个 Provider 的输入框 | `switchProvider()` 未在所有 case 前统一隐藏条件控件 | 切换后检查界面是否有多余控件 |
+| LLM 输出归一化后仍不渲染 | A2UI JSON 看起来对但 SDK 不渲染 | 归一化掩盖了结构问题，或 C++ SDK 因 version/surfaceId 静默失败 | 优先走 Card 链路绕过归一化；LLM 链路需 `adb logcat` 排查 C++ 层 |
+
 ## 推荐工作方式
 
 每次任务先回答：

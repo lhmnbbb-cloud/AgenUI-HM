@@ -287,6 +287,17 @@ public class TextDemoActivity extends AppCompatActivity {
         cancelActiveStream();
         currentProviderType = type;
 
+        // Clear previous state: input text, rendered surface, debug panel
+        etInput.setText("");
+        destroyPreviousSurface();
+        lastUserInput = "";
+        lastGeneratedMessages = null;
+        lastRawLlmOutput = "";
+        lastError = "";
+        renderStatus = "idle";
+        tvValidationBadge.setText("IDLE");
+        tvValidationBadge.setTextColor(0xFF888888);
+
         // Hide all conditional controls first, each case re-enables what it needs
         spinnerFixture.setVisibility(View.GONE);
         spinnerCardFixture.setVisibility(View.GONE);
@@ -810,24 +821,7 @@ public class TextDemoActivity extends AppCompatActivity {
             }
         }
 
-        // Delete previous surface before creating a new one
-        if (lastSurfaceId != null) {
-            surfaceManager.beginTextStream();
-            try {
-                String deleteMsg = new JSONObject()
-                        .put("version", "v0.9")
-                        .put("deleteSurface", new JSONObject()
-                                .put("surfaceId", lastSurfaceId))
-                        .toString();
-                surfaceManager.receiveTextChunk(deleteMsg);
-                addLog("Sent deleteSurface: " + lastSurfaceId);
-            } catch (Exception e) {
-                addLog("deleteSurface failed: " + e.getMessage());
-            }
-            surfaceManager.endTextStream();
-            lastSurfaceId = null;
-            renderArea.removeAllViews();
-        }
+        destroyPreviousSurface();
 
         // Extract surfaceId from createSurface message for future cleanup
         try {
@@ -1076,6 +1070,26 @@ public class TextDemoActivity extends AppCompatActivity {
             setBusy(false);
             renderStatus = "idle";
             updateDebugInfo();
+        }
+    }
+
+    private void destroyPreviousSurface() {
+        if (lastSurfaceId != null && surfaceManager != null) {
+            surfaceManager.beginTextStream();
+            try {
+                String deleteMsg = new JSONObject()
+                        .put("version", "v0.9")
+                        .put("deleteSurface", new JSONObject()
+                                .put("surfaceId", lastSurfaceId))
+                        .toString();
+                surfaceManager.receiveTextChunk(deleteMsg);
+                addLog("Sent deleteSurface: " + lastSurfaceId);
+            } catch (Exception e) {
+                addLog("deleteSurface failed: " + e.getMessage());
+            }
+            surfaceManager.endTextStream();
+            lastSurfaceId = null;
+            renderArea.removeAllViews();
         }
     }
 
