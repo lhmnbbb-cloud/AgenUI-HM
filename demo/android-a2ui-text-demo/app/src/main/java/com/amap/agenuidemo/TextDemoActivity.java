@@ -27,6 +27,7 @@ import com.amap.agenui.render.surface.SurfaceManager;
 import com.amap.agenuidemo.card.CardDataProvider;
 import com.amap.agenuidemo.card.CardRenderResult;
 import com.amap.agenuidemo.card.CardTemplateRenderer;
+import com.amap.agenuidemo.commonui.CommonControlsRegistry;
 
 import org.json.JSONObject;
 
@@ -202,6 +203,11 @@ public class TextDemoActivity extends AppCompatActivity {
 
             aGenUI.registerFunction(new ToastFunction(this));
             addLog("ToastFunction registered");
+
+            // Register Melo/Gua common controls if the proprietary SDK is available.
+            // Must be called after initialize() and before SurfaceManager creation.
+            CommonControlsRegistry.registerIfAvailable(aGenUI, this);
+            addLog("Common controls available: " + com.amap.agenuidemo.commonui.CommonControlsViewFactory.isAvailable());
 
             surfaceManager = new SurfaceManager(this);
             addLog("SurfaceManager created");

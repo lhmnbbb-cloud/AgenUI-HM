@@ -477,6 +477,67 @@ gradlew.bat assembleDebug
 gradlew.bat installDebug
 ```
 
+## 公司共通控件 SDK 适配（POC）
+
+Demo 支持在 A2UI 渲染层可选接入公司 Melo/Gua 共通控件 SDK。A2UI 协议和 CardData 协议不受影响——AI 仍然输出标准 A2UI JSON（Text/Card/Row/Column/Button），适配仅发生在 Android 渲染层。
+
+### 设计原则
+
+- **AAR 不提交 Git**：`sdk/*.aar` 和 `sdk/*.jar` 已加入 `.gitignore`
+- **A2UI 协议无感知**：CardData/A2UI JSON 中不出现 Melo/Gua 控件名，始终使用标准 A2UI 组件名
+- **反射加载，无编译期依赖**：不直接 `import com.meloui.car.ui.*`，通过 `Class.forName()` 创建控件
+- **自动 fallback**：AAR 不存在或反射失败时，自动回退到标准 Android View，构建和运行不受影响
+
+### AAR 放置
+
+将公司共通控件 SDK AAR 放到：
+
+```
+demo/android-a2ui-text-demo/sdk/gua-car-ui-lib-release.aar
+```
+
+Gradle 会在构建时自动检测：AAR 存在则编译引用，不存在则跳过。
+
+### minSdk 28
+
+公司 AAR 要求 `minSdkVersion=28`，因此 Demo app 的 `minSdk` 从 21 提升到 **28**。如果不需要共通控件，可以手动改回 21。
+
+### 已适配的 A2UI 标准组件
+
+| A2UI 组件 | Melo/Gua 控件 | Fallback |
+|-----------|--------------|----------|
+| Text | MeloTextView (AppCompatTextView) | TextView |
+| Card | MeloCardView / MeloFrameLayout | FrameLayout |
+| Button | MeloFrameLayout 容器 | FrameLayout |
+
+> Row 和 Column 在当前 POC 阶段不覆盖。用 LinearLayout 替代 FlexContainerLayout 会丢失 stretch、gap、flex-wrap 等 Flexbox 语义，导致 card template 布局异常。保留原生 FlexContainerLayout 保证布局一致性。
+
+### Button 第一版限制
+
+Button 使用 Melo 容器（FrameLayout）而非 MeloButton。原因：
+- A2UI Button 是"容器 + child component"模型，child 单独渲染后加入 Button 容器
+- MeloButton / AppCompatButton 是 `Button` 子类，不是 `ViewGroup`，无法容纳 child View
+- 使用 MeloFrameLayout 保留 child 渲染和 Function Call 点击能力
+
+### 验证是否启用
+
+查看 App 日志：
+
+```
+CommonControlsViewFactory: Common controls SDK detected (MeloTextView found)
+CommonControlsRegistry: Common controls available: true
+CommonControlsRegistry: Registered common control component: Text → MeloTextView
+CommonControlsRegistry: Registered common control component: Card → MeloCardView
+...
+```
+
+如果 AAR 不存在：
+
+```
+CommonControlsViewFactory: Common controls SDK not found, using standard Android Views
+CommonControlsRegistry: Common controls available: false
+```
+
 ## 项目结构
 
 ```
@@ -528,6 +589,15 @@ demo/android-a2ui-text-demo/
 │       │       └── template/
 │       │           ├── SportsScoreListTemplate.java  # sports_score_list 模板
 │       │           └── WeatherSummaryTemplate.java   # weather_summary 模板
+│       │       └── commonui/
+│       │           ├── CommonControlsViewFactory.java  # Melo/Gua 控件反射工厂
+│       │           ├── CommonControlsRegistry.java     # 注册入口
+│       │           ├── MeloTextComponent.java          # Text → MeloTextView
+│       │           ├── MeloTextComponentFactory.java
+│       │           ├── MeloCardComponent.java          # Card → MeloCardView
+│       │           ├── MeloCardComponentFactory.java
+│       │           ├── MeloButtonComponent.java        # Button → MeloFrameLayout 容器
+│       │           └── MeloButtonComponentFactory.java
 │       └── res/
 │           ├── layout/activity_text_demo.xml
 │           └── values/
@@ -542,6 +612,8 @@ demo/android-a2ui-text-demo/
 │       ├── server.py        # Mock CardData 服务器
 │       ├── test_card_server.py
 │       └── README.md
+├── sdk/                     # 公司共通控件 SDK（不提交 Git）
+│   └── gua-car-ui-lib-release.aar
 └── README.zh-CN.md
 ```
 
@@ -586,6 +658,9 @@ public class RomAiUiGenerationProvider implements UiGenerationProvider {
 - 日志区域仅在 App 内展示，不持久化
 - StreamingSimulator 的 chunkSize 和 delayMs 未在 UI 中暴露调节
 - LLM + Stream ON 当前是"SSE 传输 + 完整归一化后渲染"，不是把模型 token 实时直连到 `receiveTextChunk`
+- 公司共通控件适配当前覆盖 3 个 A2UI 组件（Text/Card/Button），Row/Column 保留原生 FlexContainerLayout，其余 17 个标准组件未适配
+- Button 使用 Melo 容器而非 MeloButton（Button 非 ViewGroup 无法容纳 child）
+- minSdk 从 21 提升到 28（因公司 AAR 要求）
 
 ## 下一步建议
 
@@ -596,3 +671,6 @@ public class RomAiUiGenerationProvider implements UiGenerationProvider {
 - 在车机 ROM 场景下，实现 RomAiUiGenerationProvider，做 Function Call 权限分级
 - 在 UI 中暴露 StreamingSimulator 的 chunkSize / delayMs 调节
 - 给 LLM 请求增加超时、重试和缓存机制
+- 扩展公司共通控件适配更多 A2UI 组件（Image、CheckBox、Slider、TextField 等）
+- 研究 MeloRow/MeloColumn 方案：用 FlexContainerLayout + Melo 外层/内层 wrapper，而非 LinearLayout 替代
+- 研究 MeloButton 作为 Button 容器方案（如 wrapping 在 ViewGroup 中）

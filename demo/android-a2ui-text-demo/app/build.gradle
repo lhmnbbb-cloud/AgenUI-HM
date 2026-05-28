@@ -8,7 +8,7 @@ android {
 
     defaultConfig {
         applicationId "com.amap.agenuidemo"
-        minSdk 21
+        minSdk 28
         targetSdk 35
         versionCode 1
         versionName "1.0"
@@ -46,6 +46,17 @@ dependencies {
     implementation libs.constraintlayout
     implementation libs.gson
     implementation libs.picasso
+    implementation libs.cardview
+    implementation libs.preference
+    implementation libs.recyclerview
+
+    // Company common controls SDK (proprietary, not committed to Git).
+    // If the AAR file is present, include it for Melo/Gua widget integration.
+    // If absent, the build succeeds and common controls fall back to standard Views.
+    def guaCarUiAar = rootProject.file('sdk/gua-car-ui-lib-release.aar')
+    if (guaCarUiAar.exists()) {
+        implementation files(guaCarUiAar)
+    }
 
     testImplementation libs.junit
     testImplementation libs.json

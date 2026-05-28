@@ -19,5 +19,9 @@ local.properties
 tools/llm-proxy/__pycache__/
 tools/llm-proxy/*.pyc
 
+# Company proprietary SDK (AAR/JAR), must NOT be committed to GitHub
+sdk/*.aar
+sdk/*.jar
+
 # OS
 Thumbs.db
