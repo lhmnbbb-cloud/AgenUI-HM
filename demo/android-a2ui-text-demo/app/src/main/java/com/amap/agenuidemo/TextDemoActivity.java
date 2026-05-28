@@ -39,6 +39,7 @@ public class TextDemoActivity extends AppCompatActivity {
     private static final String PREFS_NAME = "a2ui_demo_prefs";
     private static final String PREF_KEY_LLM_URL = "llm_url";
     private static final String PREF_KEY_PROXY_TOKEN = "proxy_token";
+    private static final String PREF_KEY_CARD_HTTP_URL = "card_http_url";
 
     // UI - existing
     private EditText etInput;
@@ -57,6 +58,7 @@ public class TextDemoActivity extends AppCompatActivity {
     private SwitchCompat switchStreaming;
     private EditText etLlmUrl;
     private EditText etProxyToken;
+    private EditText etCardHttpUrl;
 
     // UI - debug
     private LinearLayout debugHeader;
@@ -84,6 +86,7 @@ public class TextDemoActivity extends AppCompatActivity {
     private FixtureUiGenerationProvider fixtureProvider;
     private CardDataProvider cardFixtureProvider;
     private LLMUiGenerationProvider llmProvider;
+    private CardHttpProvider cardHttpProvider;
 
     // Streaming
     private boolean streamingMode = false;
@@ -139,6 +142,7 @@ public class TextDemoActivity extends AppCompatActivity {
         switchStreaming = findViewById(R.id.switchStreaming);
         etLlmUrl = findViewById(R.id.etLlmUrl);
         etProxyToken = findViewById(R.id.etProxyToken);
+        etCardHttpUrl = findViewById(R.id.etCardHttpUrl);
 
         // Restore persisted settings
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
@@ -146,6 +150,8 @@ public class TextDemoActivity extends AppCompatActivity {
         if (savedUrl != null) etLlmUrl.setText(savedUrl);
         String savedToken = prefs.getString(PREF_KEY_PROXY_TOKEN, null);
         if (savedToken != null) etProxyToken.setText(savedToken);
+        String savedCardHttpUrl = prefs.getString(PREF_KEY_CARD_HTTP_URL, null);
+        if (savedCardHttpUrl != null) etCardHttpUrl.setText(savedCardHttpUrl);
 
         debugHeader = findViewById(R.id.debugHeader);
         tvDebugToggle = findViewById(R.id.tvDebugToggle);
@@ -247,6 +253,7 @@ public class TextDemoActivity extends AppCompatActivity {
         fixtureProvider = new FixtureUiGenerationProvider(this);
         cardFixtureProvider = new CardDataProvider(this);
         llmProvider = new LLMUiGenerationProvider();
+        cardHttpProvider = new CardHttpProvider();
     }
 
     private void initControls() {
@@ -279,51 +286,48 @@ public class TextDemoActivity extends AppCompatActivity {
     private void switchProvider(ProviderType type) {
         cancelActiveStream();
         currentProviderType = type;
+
+        // Hide all conditional controls first, each case re-enables what it needs
+        spinnerFixture.setVisibility(View.GONE);
+        spinnerCardFixture.setVisibility(View.GONE);
+        etLlmUrl.setVisibility(View.GONE);
+        etProxyToken.setVisibility(View.GONE);
+        etCardHttpUrl.setVisibility(View.GONE);
+
         switch (type) {
             case MOCK:
                 provider = new MockUiGenerationProvider();
-                spinnerFixture.setVisibility(View.GONE);
-                spinnerCardFixture.setVisibility(View.GONE);
-                etLlmUrl.setVisibility(View.GONE);
-                etProxyToken.setVisibility(View.GONE);
                 setInputSingleLine();
                 etInput.setHint("输入文本，如：天气、设置、表单、列表...");
                 break;
             case FIXTURE:
                 provider = fixtureProvider;
                 spinnerFixture.setVisibility(View.VISIBLE);
-                spinnerCardFixture.setVisibility(View.GONE);
-                etLlmUrl.setVisibility(View.GONE);
-                etProxyToken.setVisibility(View.GONE);
                 setInputSingleLine();
                 etInput.setHint("输入文本，如：天气、设置、表单、列表...");
                 populateFixtureSpinner();
                 break;
             case CARD_FIXTURE:
-                spinnerFixture.setVisibility(View.GONE);
                 spinnerCardFixture.setVisibility(View.VISIBLE);
-                etLlmUrl.setVisibility(View.GONE);
-                etProxyToken.setVisibility(View.GONE);
                 setInputSingleLine();
                 etInput.setHint("输入文本，如：天气、设置、表单、列表...");
                 populateCardFixtureSpinner();
                 break;
             case CARD_JSON_INPUT:
-                spinnerFixture.setVisibility(View.GONE);
-                spinnerCardFixture.setVisibility(View.GONE);
-                etLlmUrl.setVisibility(View.GONE);
-                etProxyToken.setVisibility(View.GONE);
                 setInputMultiLine();
                 etInput.setHint("粘贴 CardData JSON");
                 break;
             case LLM:
                 provider = llmProvider;
-                spinnerFixture.setVisibility(View.GONE);
-                spinnerCardFixture.setVisibility(View.GONE);
                 etLlmUrl.setVisibility(View.VISIBLE);
                 etProxyToken.setVisibility(View.VISIBLE);
                 setInputSingleLine();
                 etInput.setHint("输入文本，如：天气、设置、表单、列表...");
+                break;
+            case CARD_HTTP:
+                etCardHttpUrl.setVisibility(View.VISIBLE);
+                setInputSingleLine();
+                etInput.setHint("输入文本，如：上海天气、NBA比赛...");
                 break;
         }
         updateDebugInfo();
@@ -414,6 +418,8 @@ public class TextDemoActivity extends AppCompatActivity {
             handleCardFixtureGenerate();
         } else if (currentProviderType == ProviderType.CARD_JSON_INPUT) {
             handleCardJsonInputGenerate(input);
+        } else if (currentProviderType == ProviderType.CARD_HTTP) {
+            handleCardHttpGenerate(input);
         } else {
             handleSyncGenerate(input);
         }
@@ -545,6 +551,80 @@ public class TextDemoActivity extends AppCompatActivity {
             addLog("Card JSON render failed: " + e.getMessage());
             Toast.makeText(this, "卡片渲染失败: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
+    }
+
+    private void handleCardHttpGenerate(String input) {
+        String url = etCardHttpUrl.getText().toString().trim();
+        if (url.isEmpty()) {
+            Toast.makeText(this, "请输入 Card HTTP endpoint URL", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        cardHttpProvider.setEndpointUrl(url);
+        getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit()
+                .putString(PREF_KEY_CARD_HTTP_URL, url)
+                .apply();
+
+        setBusy(true);
+        lastUserInput = input;
+        lastRawLlmOutput = "";
+        lastError = "";
+        lastGeneratedMessages = null;
+        renderStatus = "generating";
+        btnGenerate.setText("请求中...");
+        tvValidationBadge.setText("WAIT");
+        tvValidationBadge.setTextColor(0xFF996600);
+        updateDebugInfo();
+        addLog("Card HTTP request to: " + url);
+
+        llmExecutor.execute(() -> {
+            try {
+                String cardDataJson = cardHttpProvider.fetchCardData(input);
+                String rawOutput = cardHttpProvider.getRawResponse();
+
+                mainHandler.post(() -> {
+                    lastRawLlmOutput = rawOutput;
+                    addLog("Card HTTP response received (" + rawOutput.length() + " chars)");
+
+                    try {
+                        CardRenderResult result = CardTemplateRenderer.render(cardDataJson);
+                        handleCardRenderResult(result, "Card HTTP");
+                    } catch (Exception e) {
+                        renderStatus = "error";
+                        lastError = "Card render failed: " + e.getMessage();
+                        tvValidationBadge.setText("ERROR");
+                        tvValidationBadge.setTextColor(0xFFCC0000);
+                        setBusy(false);
+                        updateDebugInfo();
+                        addLog("Card render failed: " + e.getMessage());
+                        Toast.makeText(this, "卡片渲染失败: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                    }
+                });
+            } catch (CardHttpProvider.CardHttpException e) {
+                mainHandler.post(() -> {
+                    renderStatus = "error";
+                    lastRawLlmOutput = e.getRawOutput();
+                    lastError = e.getMessage();
+                    tvValidationBadge.setText("ERROR");
+                    tvValidationBadge.setTextColor(0xFFCC0000);
+                    setBusy(false);
+                    updateDebugInfo();
+                    addLog("Card HTTP error: " + e.getMessage());
+                    Toast.makeText(this, "Card HTTP 请求失败: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                });
+            } catch (Exception e) {
+                mainHandler.post(() -> {
+                    renderStatus = "error";
+                    lastError = Log.getStackTraceString(e);
+                    tvValidationBadge.setText("ERROR");
+                    tvValidationBadge.setTextColor(0xFFCC0000);
+                    setBusy(false);
+                    updateDebugInfo();
+                    addLog("Card HTTP error: " + e.getMessage());
+                    Toast.makeText(this, "Card HTTP 请求失败", Toast.LENGTH_SHORT).show();
+                });
+            }
+        });
     }
 
     private void handleSyncGenerate(String input) {
@@ -712,9 +792,9 @@ public class TextDemoActivity extends AppCompatActivity {
     }
 
     private void sendToSdk(String[] messages) {
-        // Card Fixture output is already valid A2UI; skip normalization to preserve
+        // Card Fixture/JSON Input/HTTP output is already valid A2UI; skip normalization to preserve
         // template structure exactly. All other paths need normalization.
-        if (currentProviderType != ProviderType.CARD_FIXTURE && currentProviderType != ProviderType.CARD_JSON_INPUT) {
+        if (currentProviderType != ProviderType.CARD_FIXTURE && currentProviderType != ProviderType.CARD_JSON_INPUT && currentProviderType != ProviderType.CARD_HTTP) {
             try {
                 messages = A2uiMessageNormalizer.normalizeMessages(messages);
                 lastGeneratedMessages = messages;
@@ -1009,6 +1089,9 @@ public class TextDemoActivity extends AppCompatActivity {
         }
         if (currentProviderType == ProviderType.LLM) {
             providerInfo += " [" + llmProvider.getEndpointUrl() + "]";
+        }
+        if (currentProviderType == ProviderType.CARD_HTTP) {
+            providerInfo += " [" + cardHttpProvider.getEndpointUrl() + "]";
         }
         tvDebugProvider.setText(providerInfo);
         tvDebugInput.setText("Input: " + (lastUserInput.isEmpty() ? "-" : lastUserInput));

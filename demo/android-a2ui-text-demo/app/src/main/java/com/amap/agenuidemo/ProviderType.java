@@ -5,7 +5,8 @@ public enum ProviderType {
     FIXTURE("Fixture"),
     CARD_FIXTURE("Card Fixture"),
     CARD_JSON_INPUT("Card JSON"),
-    LLM("LLM");
+    LLM("LLM"),
+    CARD_HTTP("Card HTTP");
 
     private final String displayName;
 

@@ -5,12 +5,13 @@
 ## 功能
 
 - 输入中文文本，点击"生成 UI"按钮
-- 支持五种 Provider 模式生成 A2UI 协议 JSON：
+- 支持六种 Provider 模式生成 A2UI 协议 JSON：
   - **Mock** — 根据关键词匹配生成内置 UI
   - **Fixture** — 从 `assets/fixtures/` 加载本地 A2UI JSON 样例
   - **Card Fixture** — 从 `assets/card_fixtures/` 加载结构化卡片数据，本地确定性生成 A2UI
   - **Card JSON** — 用户在输入框粘贴 CardData JSON，直接走 Card 渲染链路
   - **LLM** — 通过 HTTP POST 调用可配置的生成接口，接入真实大模型
+  - **Card HTTP** — 通过 HTTP POST 调用可配置的 CardData 接口，模拟 AI 组返回结构化卡片数据
 - LLM 输出先经过 `A2uiMessageNormalizer` 归一化，再进入校验和 SDK 渲染
 - Card Fixture 输出不经过 Normalizer，由 `CardTemplateRenderer` 本地确定性生成 A2UI
 - Card JSON 输出不经过 Normalizer，用户粘贴的 CardData JSON 直接由 `CardTemplateRenderer` 渲染
@@ -163,6 +164,83 @@ CardData 示例：
 ```
 
 此模式用于模拟 AI 组直接传入 CardData JSON 的场景，验证端到端管线时不依赖本地 fixture 文件。
+
+### Card HTTP 模式
+
+切换到 **Card HTTP** Provider 后：
+
+1. 出现 URL 输入框，填写 CardData 接口地址（默认 `http://10.0.2.2:8766/generate-card`）
+2. 输入文本，点击"生成 UI"
+3. App 通过 HTTP POST 调用该接口，请求体：
+
+```json
+{
+  "userInput": "北京天气",
+  "version": "0.1",
+  "supportedCardTypes": ["sports_score_list", "weather_summary"]
+}
+```
+
+4. 接口返回 CardData JSON：
+
+```json
+{
+  "cardData": {
+    "requestId": "weather-123",
+    "cardType": "weather_summary",
+    "title": "今日天气",
+    ...
+  }
+}
+```
+
+5. App 直接将返回的 cardData 送入 `CardContractValidator` → `CardTemplateRenderer` 渲染链路，不经过 LLM、不经过 `A2uiMessageNormalizer`
+
+数据流程：
+
+```
+用户输入文本
+  → CardHttpProvider (HTTP POST 请求 CardData)
+  → CardContractValidator (校验卡片协议)
+  → CardTemplateRenderer (本地确定性生成 A2UI)
+  → A2uiJsonValidator (校验 A2UI 输出)
+  → SurfaceManager → AGenUI 渲染
+```
+
+此模式用于模拟未来 AI 组服务返回结构化 CardData JSON 的场景。相比直接返回 A2UI JSON，这种架构：
+- 降低了 LLM 输出的复杂度（无需生成正确的 A2UI 组件结构）
+- 保证了 UI 渲染的一致性（通过本地模板）
+- 允许 UI 更新无需修改模型提示词
+- 便于做卡片协议校验和降级处理
+
+#### 本地 Mock CardData 服务器
+
+项目提供了一个 Mock CardData 服务器：`tools/card-data-server/`
+
+```bash
+cd tools/card-data-server
+python server.py                  # 默认监听 127.0.0.1:8766
+
+# 真机调试时绑定所有接口：
+$env:CARD_SERVER_HOST="0.0.0.0"
+python server.py
+
+# 可选：修改端口
+$env:CARD_SERVER_PORT="8766"
+```
+
+服务器根据关键词匹配返回对应卡片类型：
+- 输入含"天气"、"weather" → 返回 `weather_summary`
+- 输入含"体育"、"NBA"、"比分"、"score" → 返回 `sports_score_list`
+- 其他输入 → 返回 400 error，`debug.matchedIntent=unknown`
+
+测试服务器：
+
+```bash
+python test_card_server.py
+```
+
+详见 `tools/card-data-server/README.md`。
 
 weather_summary 示例（可直接复制到输入框）：
 
@@ -434,6 +512,7 @@ demo/android-a2ui-text-demo/
 │       │   ├── MockUiGenerationProvider.java    # Mock 实现
 │       │   ├── FixtureUiGenerationProvider.java # Fixture 实现
 │       │   ├── LLMUiGenerationProvider.java     # LLM 实现（HTTP POST）
+│       │   ├── CardHttpProvider.java            # Card HTTP 实现（HTTP POST 获取 CardData）
 │       │   ├── ProviderType.java               # Provider 类型枚举
 │       │   ├── A2uiMessageNormalizer.java       # LLM 输出归一化
 │       │   ├── A2uiJsonValidator.java           # A2UI JSON 校验器
@@ -456,8 +535,12 @@ demo/android-a2ui-text-demo/
 ├── settings.gradle
 ├── gradle.properties
 ├── tools/
-│   └── llm-proxy/
-│       ├── server.py        # 本地 LLM 代理服务器
+│   ├── llm-proxy/
+│   │   ├── server.py        # 本地 LLM 代理服务器
+│   │   └── README.md
+│   └── card-data-server/
+│       ├── server.py        # Mock CardData 服务器
+│       ├── test_card_server.py
 │       └── README.md
 └── README.zh-CN.md
 ```
@@ -496,8 +579,8 @@ public class RomAiUiGenerationProvider implements UiGenerationProvider {
 - MockUiGenerationProvider 仅基于关键词匹配，不做自然语言理解
 - FixtureUiGenerationProvider 不支持动态数据绑定
 - Card Fixture 当前支持 text_summary、text_list、image_text_list、sports_score_list、weather_summary 五种卡片类型
-- sports_score_list 当前无真实数据源，仅使用本地 fixture
-- weather_summary 当前无真实数据源，仅使用本地 fixture
+- sports_score_list 当前无真实数据源，仅使用本地 fixture 和 Mock HTTP 服务器
+- weather_summary 当前无真实数据源，仅使用本地 fixture 和 Mock HTTP 服务器
 - 每次点击"生成 UI"会销毁旧 Surface 并创建新 Surface
 - 未实现自定义组件注册（Markdown、Lottie、Chart 等需要手动注册，Demo 默认只使用 SDK 22 种内置组件）
 - 日志区域仅在 App 内展示，不持久化
