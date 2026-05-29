@@ -30,6 +30,48 @@
           }
         }
       }
+    },
+    "Card": {
+      "variant": {
+        "enum": {
+          "mluiCardPrimary": {
+            "styles": {
+              "melo-card-background": "mlui_app_bg_color_primary",
+              "melo-card-radius": "16px",
+              "background-color": "#FFFFFF",
+              "border-radius": "16px",
+              "filter": "none"
+            }
+          },
+          "mluiCardSecondary": {
+            "styles": {
+              "melo-card-background": "mlui_app_bg_color_secondary",
+              "melo-card-radius": "16px",
+              "background-color": "#FFFFFF",
+              "border-radius": "16px",
+              "filter": "none"
+            }
+          },
+          "mluiCardTertiary": {
+            "styles": {
+              "melo-card-background": "mlui_app_bg_color_tertiary",
+              "melo-card-radius": "16px",
+              "background-color": "#FFFFFF",
+              "border-radius": "16px",
+              "filter": "none"
+            }
+          },
+          "mluiCardRect": {
+            "styles": {
+              "melo-card-background": "mlui_app_bg_color_primary",
+              "melo-card-radius": "0px",
+              "background-color": "#FFFFFF",
+              "border-radius": "0px",
+              "filter": "none"
+            }
+          }
+        }
+      }
     }
   }
 }

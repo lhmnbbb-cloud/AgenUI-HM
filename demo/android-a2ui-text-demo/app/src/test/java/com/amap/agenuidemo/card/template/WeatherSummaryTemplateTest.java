@@ -368,6 +368,66 @@ public class WeatherSummaryTemplateTest {
         }
     }
 
+    @Test
+    public void render_weatherCard_usesMluiCardPrimaryVariant() throws Exception {
+        JSONObject data = new JSONObject()
+                .put("requestId", "weather_card_variant")
+                .put("title", "天气")
+                .put("current", new JSONObject()
+                        .put("condition", "晴")
+                        .put("temperature", 28));
+
+        String[] messages = WeatherSummaryTemplate.render(data);
+        JSONArray components = new JSONObject(messages[1])
+                .getJSONObject("updateComponents").getJSONArray("components");
+
+        JSONObject card = findComponentById(components, "weather-card");
+        assertNotNull(card);
+        assertEquals("mluiCardPrimary", card.getString("variant"));
+    }
+
+    @Test
+    public void render_weatherCard_stylesOmitBackgroundAndBorderRadius() throws Exception {
+        JSONObject data = new JSONObject()
+                .put("requestId", "weather_card_no_bg")
+                .put("title", "天气")
+                .put("current", new JSONObject()
+                        .put("condition", "晴")
+                        .put("temperature", 28));
+
+        String[] messages = WeatherSummaryTemplate.render(data);
+        JSONArray components = new JSONObject(messages[1])
+                .getJSONObject("updateComponents").getJSONArray("components");
+
+        JSONObject card = findComponentById(components, "weather-card");
+        assertNotNull(card);
+        JSONObject styles = card.optJSONObject("styles");
+        assertNotNull(styles);
+        assertFalse("weather-card should not hardcode background-color",
+                styles.has("background-color"));
+        assertFalse("weather-card should not hardcode border-radius",
+                styles.has("border-radius"));
+        assertTrue("weather-card should still have padding",
+                styles.has("padding"));
+    }
+
+    @Test
+    public void render_weatherCard_withVariant_stillPassesA2uiValidator() throws Exception {
+        JSONObject data = new JSONObject()
+                .put("requestId", "weather_card_valid")
+                .put("title", "天气")
+                .put("location", "上海")
+                .put("updatedAt", "14:30")
+                .put("current", new JSONObject()
+                        .put("condition", "晴")
+                        .put("temperature", 28)
+                        .put("high", 30)
+                        .put("low", 18));
+
+        String[] messages = WeatherSummaryTemplate.render(data);
+        assertPassesA2uiValidator(messages);
+    }
+
     private static JSONObject findComponentById(JSONArray components, String id) throws Exception {
         for (int i = 0; i < components.length(); i++) {
             JSONObject comp = components.getJSONObject(i);

@@ -44,9 +44,10 @@ public final class CommonControlsRegistry {
         aGenUI.registerComponent("Text", new MeloTextComponentFactory());
         Log.i(TAG, "Registered common control component: Text → MeloTextView");
 
-        // Card → MeloCardView (or MeloFrameLayout fallback)
+        // Card → MeloFrameLayout (fallback: FrameLayout) + GradientDrawable background.
+        // Deliberately NOT a CardView subclass — see MeloCardComponent / docs §12.
         aGenUI.registerComponent("Card", new MeloCardComponentFactory());
-        Log.i(TAG, "Registered common control component: Card → MeloCardView");
+        Log.i(TAG, "Registered common control component: Card → MeloFrameLayout-backed Card");
 
         // Button → MeloFrameLayout container (not MeloButton, see MeloButtonComponent doc)
         aGenUI.registerComponent("Button", new MeloButtonComponentFactory());

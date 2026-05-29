@@ -49,7 +49,7 @@ A2UI JSON (标准组件名)
 | `commonui/CommonControlsViewFactory.java` | 反射工厂：`createTextView()`、`createCardView()`、`createFrameLayout()`。首次调用 `isAvailable()` 缓存 SDK 可用性 |
 | `commonui/CommonControlsRegistry.java` | 注册入口：`registerIfAvailable(aGenUI, context)` → 覆盖 Text/Card/Button 三种组件工厂 |
 | `commonui/MeloTextComponent.java` | Text 适配：MeloTextView，继承 `A2UIComponent` |
-| `commonui/MeloCardComponent.java` | Card 适配：MeloCardView，继承 `A2UILayoutComponent`，含 `applyCardContentPadding()` |
+| `commonui/MeloCardComponent.java` | Card 适配：MeloFrameLayout / FrameLayout + GradientDrawable，继承 `A2UILayoutComponent`，含 `applyCardAppearanceIfPresent()` + `applyCardPadding()`（普通 setPadding）。**§5 描述的 `applyCardContentPadding()` / CardView 路径已废弃**，详见 §12 |
 | `commonui/MeloButtonComponent.java` | Button 适配：MeloFrameLayout 容器，继承 `A2UILayoutComponent` |
 | `commonui/Melo*ComponentFactory.java` | 各组件的 `IComponentFactory` 实现 |
 | `TextDemoActivity.java` | 调用 `CommonControlsRegistry.registerIfAvailable()` 的入口 |
@@ -72,7 +72,7 @@ A2UI JSON (标准组件名)
 | A2UI 组件 | 公司控件 | Fallback | 说明 |
 |-----------|---------|----------|------|
 | Text | MeloTextView (继承 AppCompatTextView) | TextView | 单一 View 组件，无 child 容器语义问题 |
-| Card | MeloCardView / MeloFrameLayout | FrameLayout | ViewGroup 容器，单 child，需特殊处理 padding（见第 5 节） |
+| Card | MeloFrameLayout + GradientDrawable | FrameLayout + GradientDrawable | ViewGroup 容器，单 child；**当前实现**，曾经的 CardView 方案见 §5（历史） |
 | Button | MeloFrameLayout 容器 | FrameLayout | A2UI Button 是"容器 + child component"模型；MeloButton/AppCompatButton 是 Button 子类，不是 ViewGroup，无法容纳 child View |
 
 ### 未适配（2 种，明确不覆盖）
@@ -109,7 +109,9 @@ Button(id="btn", child="btn-text")
 
 ---
 
-## 5. Card padding 问题（最重要的坑）
+## 5. Card padding 问题（历史问题，已废弃 — 仅作背景）
+
+> **当前实现不再走这条路径。** Card backing view 已改为 MeloFrameLayout / FrameLayout + `GradientDrawable` 背景 + 普通 `setPadding`，详见 §12。本节保留是为了解释为什么不再使用 CardView —— 如果你正在调 Card 渲染，不要照本节代码改。
 
 ### 5.1 问题现象
 
@@ -261,10 +263,10 @@ public void onUpdateProperties(Map<String, Object> properties) {
 |---|--------|------|-------------|
 | 1 | 是否是 ViewGroup | A2UI 容器组件（Card、Button）需要承载 child。非 ViewGroup 控件只能用于非容器组件（Text、Image、Icon） | Button 不能用 MeloButton（非 ViewGroup） |
 | 2 | Flexbox 语义是否一致 | Row/Column 依赖 FlexContainerLayout（FlexboxLayout）。LinearLayout 不支持 stretch/gap/flex-wrap | Row/Column 保留原生 FlexContainerLayout |
-| 3 | padding API 是否语义一致 | CardView 的 padding = `setContentPadding()`，普通 View 的 padding = `setPadding()` | MeloCardComponent.applyCardContentPadding() |
-| 4 | background API 是否一致 | 检查公司控件的背景绘制是否兼容 StyleHelper.applyBackground()（GradientDrawable / ColorDrawable） | CardView 有 CardBackground |
-| 5 | border-radius API 是否一致 | CardView 用 `setRadius()`，普通 View 用 GradientDrawable corner radius | CardView.setRadius() |
-| 6 | elevation / shadow API | CardView 有 `setCardElevation()`，普通 View 用 `StateListAnimator` 或自定义 drawable | CardView elevation |
+| 3 | padding API 是否语义一致 | 标准 ViewGroup 用 `setPadding()`；带"内容区/外层"语义分裂的容器（如 CardView 的 `setContentPadding()`）必须额外特判 —— 这是把 A2UI Card backing view 改回 FrameLayout 的主要原因 | 当前 Card → MeloFrameLayout，普通 `setPadding`，详见 §12.1 |
+| 4 | background API 是否一致 | 检查公司控件的背景绘制是否兼容 `StyleHelper.applyBackground()`（GradientDrawable / ColorDrawable）；自带内置背景的控件（CardView 的 cardBackgroundColor）会和我们的 GradientDrawable 抢视觉层 | Card 现在用 FrameLayout + GradientDrawable，无内置背景冲突 |
+| 5 | border-radius API 是否一致 | 优先用 `GradientDrawable.setCornerRadius()` —— 这是通用方案。控件自带 corner radius API（CardView 的 `setRadius()`）需要清零以免与 GradientDrawable 双层 | Card 用 GradientDrawable 圆角，参见 §12.2 |
+| 6 | elevation / shadow API | 默认压成 `filter: "none"`，避免与公司控件内置 elevation 重影 | Card variant fallback `filter: "none"` |
 | 7 | action / click / function call | 确认 `setOnClickListener()` 是否仍能正常触发 A2UI Function Call | Button 容器的 click listener |
 | 8 | AAR 不存在时 fallback 是否可用 | 反射失败自动 fallback 到标准 View，功能不能降级 | CommonControlsViewFactory fallback 链 |
 | 9 | minSdk / manifest / 权限 / 资源冲突 | 公司 AAR 可能引入 minSdk 限制、manifest provider 合并冲突、权限要求、资源命名冲突 | minSdk 28、preference/recyclerview 依赖 |
@@ -277,14 +279,14 @@ public void onUpdateProperties(Map<String, Object> properties) {
 1. 公司共通控件适配当前覆盖 3 个 A2UI 组件（Text/Card/Button），Row/Column 保留原生 FlexContainerLayout，其余 17 个标准组件未适配
 2. Button 使用 Melo 容器而非 MeloButton（Button 非 ViewGroup 无法容纳 child）
 3. minSdk 从 21 提升到 28（因公司 AAR 要求），即使 AAR 不存在 minSdk 也是 28
-4. MeloCardView 的 `setPadding()` 语义问题已通过 `applyCardContentPadding()` 修复。`StyleHelper.applySpacing()` 仍会调用 `setPadding()`，但对 CardView 的内容内边距不可依赖；最终以 `applyCardContentPadding()` 调用 `setContentPadding()` 来保证内容区 padding 正确
+4. ~~MeloCardView 的 `setPadding()` 语义问题已通过 `applyCardContentPadding()` 修复~~ **（已废弃）** —— Card backing view 已彻底改为 MeloFrameLayout / FrameLayout + `GradientDrawable`，padding 回归普通 `setPadding`，不再需要 `setContentPadding` 特判。详见 §12.1
 5. Row/Column 的公司控件适配需要研究"FlexContainerLayout + Melo 外层/内层 wrapper"方案，不能直接用 LinearLayout 替代
 
 ---
 
 ## 9. 下一阶段建议
 
-1. **真机验证 Card padding**：在带公司 AAR 的真机上渲染 weather_summary 和 sports_score_list 卡片，确认 `applyCardContentPadding()` 修复有效，内容不贴边
+1. **真机验证 Card 视觉**：在带公司 AAR 的真机上渲染 weather_summary 和 sports_score_list 卡片，确认 FrameLayout + GradientDrawable 方案（§12）下圆角、底色、padding、日夜切换都正确，AAR 缺失时仍呈白底圆角 fallback
 2. **研究 MeloRow/MeloColumn 方案**：不替换 FlexContainerLayout，而是用 Melo 控件做外层/内层 wrapper（例如：FlexContainerLayout 内部子项的 View 替换为 Melo 控件，但 FlexboxLayout 布局引擎不变）
 3. **研究 MeloButton 容器方案**：尝试把 MeloButton 的品牌样式（圆角、渐变背景 drawable）提取出来，应用到 MeloFrameLayout 容器上，而不是直接用 MeloButton
 4. **评估 minSdk 动态切换**：当前 minSdk=28 是无条件写死的。可以研究用 flavor 或 buildConfig 让不带公司 AAR 的构建保持 minSdk=21
@@ -353,3 +355,114 @@ WeatherSummaryTemplate (variant: mluiTitle / mluiTitleLarge / mluiBody / mluiCon
 - 模板里如果确实要覆盖某个属性，请显式写在组件的 `styles` 里（会覆盖 TextAppearance）
 - 在 `WeatherSummaryTemplateTest` 里对照新增 `render_basic_textsUseMluiVariants` 和 `render_basic_textStylesOmitFontSizeColorWeight` 两条测试，保证未来不会有人在模板里偷偷加回硬编码
 | 项目级 CLAUDE.md | `CLAUDE.md`（"公司共通控件 SDK 适配"章节） |
+
+---
+
+## 12. Card → Mlui Card appearance 适配（小闭环）
+
+第二条"模板不再硬编码视觉属性"的小闭环。复用 §11 的 demo theme + 私有 styles key 模式，把硬编码的 `background-color` / `border-radius` 替换为公司语义 variant。**严格禁止使用 `gua_*` 开头的资源**（drawable / color / attr / style），背景资源只允许使用 `mlui_app_bg_color_*` ColorStateList。
+
+### 12.1 Card backing view 切回 FrameLayout
+
+历史上 A2UI Card 的 Android 承载 View 是公司 CardView（MeloCardView）。这条路径累积了一堆坑：
+
+- `CardView.setPadding()` 设的是外层 padding，不是内容区，必须特判 `setContentPadding()`
+- 自带 `cardBackgroundColor / radius / cardElevation` 会和我们安装的 `GradientDrawable` 抢视觉层
+- `useCompatPadding / preventCornerOverlap` 引入 inset，与 Flexbox 父容器打架
+- fallback 行为复杂：要分 CardView / MeloCardView / FrameLayout 三段判断
+
+**当前版本把 Card backing view 改为 MeloFrameLayout / FrameLayout：**
+
+```
+CommonControlsViewFactory.createCardView(ctx)
+  → 反射 com.meloui.car.ui.widget.MeloFrameLayout
+  → 反射失败 → new android.widget.FrameLayout(ctx)
+  → 不再尝试任何 CardView 子类
+```
+
+`MeloCardComponent` 同步删除所有 CardView 专属 API：`setContentPadding / setCardBackgroundColor / setRadius / setCardElevation / setUseCompatPadding / setPreventCornerOverlap / instanceof CardView`。padding 回归普通 `cardView.setPadding(...)`。
+
+### 12.2 链路
+
+```
+WeatherSummaryTemplate (variant: mluiCardPrimary)
+  → SDK spec 引擎读取 default theme，把 variant 展开为 styles:
+      { melo-card-background: "mlui_app_bg_color_primary",
+        melo-card-radius: "16px",
+        background-color: "#FFFFFF",      // 可见 fallback（AAR 缺失时仍是白底）
+        border-radius: "16px",            // 可见 fallback（mluiCardRect 为 0px）
+        filter: "none" }
+  → MeloCardComponent.onUpdateProperties() 调 super → applyCardAppearanceIfPresent()
+  → Resources.getIdentifier(name, "color", pkg)
+  → ContextCompat.getColorStateList(...) 优先（保留日夜 state）
+  → ColorStateList 失败 → ContextCompat.getColor(...)
+  → 都失败 → ContextCompat.getDrawable(...) 仅认 ColorDrawable / GradientDrawable
+  → new GradientDrawable().setShape(RECTANGLE).setColor(...).setCornerRadius(radiusPx)
+  → cardView.setBackground(gradient)
+  → applyCardPadding() 普通 setPadding（不再 setContentPadding）
+```
+
+### 12.3 新增 4 个 Card variant
+
+| variant | 背景资源 | 圆角 | 说明 |
+|---------|---------|------|------|
+| `mluiCardPrimary` | `mlui_app_bg_color_primary` | 16px | 主卡片 |
+| `mluiCardSecondary` | `mlui_app_bg_color_secondary` | 16px | 次级 / 嵌套 |
+| `mluiCardTertiary` | `mlui_app_bg_color_tertiary` | 16px | 浮层 |
+| `mluiCardRect` | `mlui_app_bg_color_primary` | 0px | 直角主卡片 |
+
+### 12.4 为什么 Card variant 的 fallback 装饰必须可见
+
+A2UI core 的 Card spec 会自动补 `background-color` / `border-radius` / `filter` 默认值。即使模板里删掉这些字段，C++ spec 引擎仍会在 styles 里补回去，触发 `StyleHelper.applyBorder()` 用这些值构造 `GradientDrawable` 并 `view.setBackground()`。
+
+之前为了避免 StyleHelper 的背景覆盖公司 drawable，把 variant 里写成 `#00000000 + 0px + none`。后果是 AAR 缺失时（开发机、CI、外部贡献者），`melo-card-background` 解析失败 → 没有公司 drawable → fallback 背景透明 → 卡片完全消失。
+
+现在的方案是 fallback 装饰**保持可见**：
+
+```json
+{
+  "background-color": "#FFFFFF",
+  "border-radius": "16px",     // mluiCardRect 是 0px
+  "filter": "none"             // 仍要压住默认阴影
+}
+```
+
+公司控件可用时，`MeloCardComponent.applyCardAppearanceIfPresent()` 在 super 之后 `setBackground(gradient)`，公司 drawable 一定赢；公司控件不可用时，StyleHelper 的白底 16px GradientDrawable 留在 View 上，至少是可见卡片。
+
+### 12.5 为什么背景必须用 ColorStateList 路径
+
+公司 `mlui_app_bg_color_*` 是 `res/color/*.xml` ColorStateList，state 是公司自定义 `mlui_state_night` 属性。资源解析顺序**必须**是：
+
+1. `ContextCompat.getColorStateList(ctx, colorId)` —— 拿到完整 selector，`GradientDrawable.setColor(ColorStateList)` 之后日夜切换由 GradientDrawable 自己处理
+2. ColorStateList 失败再 `ContextCompat.getColor(ctx, colorId)` —— 仅对纯 `<color>` 资源有效，拿到的是 default（day）值，会丢日夜
+3. color resource 也未命中才退 `getDrawable()`
+
+**不能**反过来"先 getColor 再补 ColorStateList"。getColor 对 state list 资源不会失败，会直接返回 default 值，selector 就被悄悄拍平。
+
+### 12.6 为什么不使用 LiquidGlass
+
+AAR 里有 7 个 `Mlui.LiquidGlass.*` style + 11 个微调 attr + `com.meloui.car.ui.glass.LiquidGlassEffectHelper`（5 个 AGSL `RuntimeShader`）。当前不集成的原因：
+
+- LiquidGlass 依赖 Android 13+（`sPlatformSupportLiquidGlass` 静态门控的 RuntimeShader API）
+- 效果通过 `ViewHelper.updateAttributeSet(View, AttributeSet)` 在 View 构造期从 XML AttributeSet 读取，**没有运行时 Java API**
+- demo `minSdk=28`（Android 9），且车机 GPU 性能不可控
+- 实现成本远高于 GradientDrawable 路径，收益（玻璃质感）非 demo 验证目标
+
+### 12.7 新增 / 修改的文件
+
+| 文件 | 角色 |
+|------|------|
+| `assets/common_controls_theme.json` | default theme 下新增 `Card.variant.enum` 的 4 个 variant；fallback 装饰为 `#FFFFFF + 16px/0px + filter:none` |
+| `commonui/CommonControlsViewFactory.java` | `createCardView()` 改为只反射 `MeloFrameLayout`，fallback 到 `FrameLayout`；不再创建 CardView 子类 |
+| `commonui/MeloCardComponent.java` | 重写：删除全部 CardView 专属 API；`applyCardAppearanceIfPresent()` 走 ColorStateList → int color → drawable 三层；`applyCardPadding()` 普通 setPadding |
+| `card/template/WeatherSummaryTemplate.java` | `weather-card` 用 `variant: "mluiCardPrimary"`，移除 `background-color` / `border-radius`，保留 `padding/width/height` |
+| `test/commonui/CommonControlsThemeTest.java` | theme 守卫：无 `gua`、保留 5 个 mlui Text variants、声明 4 个 Card variants、fallback 装饰可见（`#FFFFFF + 16px/0px + filter:none`） |
+| `test/commonui/CommonControlsViewFactoryTest.java` | 源码级守卫：factory 不再引用 CardView 类 / `androidx.cardview` 包；`MeloCardComponent` 不再使用 `setContentPadding / setCard* / setUseCompatPadding / setPreventCornerOverlap / instanceof CardView` |
+| `test/card/template/WeatherSummaryTemplateTest.java` | weather-card 用 `mluiCardPrimary`、styles 不含 `background-color/border-radius`、仍含 `padding` 且过 A2uiJsonValidator |
+
+### 12.8 当前限制
+
+- 只改 `WeatherSummaryTemplate` 作为对照样本；`SportsScoreListTemplate` 故意保留旧写法
+- AAR / `mlui_app_bg_color_*` 资源缺失时跳过 setBackground，由 theme JSON 里的 `#FFFFFF + 16px` 白底圆角作为可见 fallback
+- 真机未验证。必须验证项：圆角是否到位、`ColorStateList` 日夜切换是否生效、padding 是否到位、AAR 缺失时 Card 是否仍呈白底圆角
+- 没有为 Card 提供 `mluiCard` 默认无修饰 variant，需要时再加

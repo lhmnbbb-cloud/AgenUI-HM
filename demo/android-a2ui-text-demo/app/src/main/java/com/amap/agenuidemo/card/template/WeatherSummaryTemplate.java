@@ -82,13 +82,12 @@ public class WeatherSummaryTemplate {
         componentArray.put(new JSONObject()
                 .put("id", "weather-card")
                 .put("component", "Card")
+                .put("variant", "mluiCardPrimary")
                 .put("child", "weather-content")
                 .put("styles", new JSONObject()
                         .put("width", "auto")
                         .put("height", "auto")
-                        .put("padding", "24px")
-                        .put("border-radius", "16px")
-                        .put("background-color", "#FFFFFF")));
+                        .put("padding", "24px")));
 
         // Primary row: condition + temperature (or placeholder when both empty)
         String condition = current != null ? current.optString("condition", "") : "";

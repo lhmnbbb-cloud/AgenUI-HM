@@ -1,10 +1,16 @@
 package com.amap.agenuidemo.commonui;
 
 import android.content.Context;
+import android.content.res.ColorStateList;
+import android.content.res.Resources;
+import android.graphics.drawable.ColorDrawable;
+import android.graphics.drawable.Drawable;
+import android.graphics.drawable.GradientDrawable;
+import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 
-import androidx.cardview.widget.CardView;
+import androidx.core.content.ContextCompat;
 
 import com.amap.agenui.render.component.A2UIComponent;
 import com.amap.agenui.render.component.A2UILayoutComponent;
@@ -13,18 +19,30 @@ import com.amap.agenui.render.style.StyleHelper;
 import java.util.Map;
 
 /**
- * A2UI Card component backed by a MeloCardView (or MeloFrameLayout/Fallback).
+ * A2UI Card component backed by a {@code MeloFrameLayout} (or
+ * {@link android.widget.FrameLayout} when the proprietary AAR is absent).
  *
- * <p>Same semantics as the standard CardComponent: a container with one child.
- * Uses {@link CommonControlsViewFactory#createCardView} for reflection-based
- * View creation with automatic fallback.
- *
- * <p>MeloCardView extends CardView, whose content spacing API is
- * {@code setContentPadding()} rather than {@code setPadding()}. This component
- * mirrors A2UI padding styles into CardView content padding so existing card
- * templates keep their inner spacing.
+ * <p>Historically this component used the AndroidX card container widget.
+ * That widget turned out to be a poor match for A2UI Card semantics:
+ * <ul>
+ *   <li>Its {@code setPadding} silently no-ops on the content area; only the
+ *       dedicated content-padding API sizes the inner box.</li>
+ *   <li>Its built-in background colour, corner radius and elevation compete
+ *       with the {@link GradientDrawable} we install for
+ *       {@code melo-card-background}, requiring extra reset code.</li>
+ *   <li>Its compat-padding and corner-overlap insets introduce surprises that
+ *       fight Flexbox parents.</li>
+ * </ul>
+ * FrameLayout + GradientDrawable + plain {@code setPadding} is a cleaner fit:
+ * the Mlui card background becomes a single drawable, and padding behaves
+ * exactly like every other A2UI container.
  */
 public class MeloCardComponent extends A2UILayoutComponent {
+
+    private static final String TAG = "MeloCardComponent";
+    private static final String STYLE_KEY_BACKGROUND = "melo-card-background";
+    private static final String STYLE_KEY_RADIUS = "melo-card-radius";
+    private static final String DEFAULT_RADIUS = "16px";
 
     private ViewGroup cardView;
     private A2UIComponent childComponent;
@@ -39,7 +57,8 @@ public class MeloCardComponent extends A2UILayoutComponent {
     @Override
     public View createView(Context context, ViewGroup parent) {
         View view = super.createView(context, parent);
-        applyCardContentPadding();
+        applyCardAppearanceIfPresent();
+        applyCardPadding();
         return view;
     }
 
@@ -56,26 +75,142 @@ public class MeloCardComponent extends A2UILayoutComponent {
     @Override
     public void onUpdateProperties(Map<String, Object> properties) {
         super.onUpdateProperties(properties);
-        applyCardContentPadding();
+        applyCardAppearanceIfPresent();
+        applyCardPadding();
     }
 
-    private void applyCardContentPadding() {
-        if (!(cardView instanceof CardView)) {
+    /**
+     * Resolves the demo-private {@code melo-card-background} (color resource
+     * name) and {@code melo-card-radius} (dimension) keys to a
+     * {@link GradientDrawable} and installs it as the card background.
+     *
+     * <p>Runs after {@code super.onUpdateProperties} so it overrides whatever
+     * StyleHelper.applyBackground / applyBorder may have written for the
+     * fallback {@code background-color / border-radius} declared on the Card
+     * variant in {@code common_controls_theme.json}.
+     *
+     * <p>Background resolution order — important: ColorStateList first so the
+     * day/night-aware {@code mlui_app_bg_color_*} selectors keep their state
+     * switching. Flattening to a single color via {@code getColor()} would lock
+     * the card to its day value.
+     * <ol>
+     *   <li>{@link ContextCompat#getColorStateList(Context, int)} —
+     *       preserves day/night selectors.</li>
+     *   <li>{@link ContextCompat#getColor(Context, int)} — flat color
+     *       fallback if the resource is a plain {@code <color>}.</li>
+     *   <li>{@link ContextCompat#getDrawable(Context, int)} — last resort for
+     *       drawable resources.</li>
+     * </ol>
+     */
+    private void applyCardAppearanceIfPresent() {
+        if (cardView == null) {
+            return;
+        }
+        Map<String, Object> styles = extractStyles(this.properties);
+        if (styles == null || !styles.containsKey(STYLE_KEY_BACKGROUND)) {
+            return;
+        }
+        Object rawName = styles.get(STYLE_KEY_BACKGROUND);
+        String resourceName = rawName == null ? "" : String.valueOf(rawName).trim();
+        if (resourceName.isEmpty()) {
             return;
         }
 
+        Context ctx = cardView.getContext();
+        Object rawRadius = styles.containsKey(STYLE_KEY_RADIUS)
+                ? styles.get(STYLE_KEY_RADIUS) : DEFAULT_RADIUS;
+        int radiusPx = StyleHelper.parseDimension(rawRadius, ctx);
+        if (radiusPx < 0) {
+            radiusPx = 0;
+        }
+
+        GradientDrawable gradient = buildBackgroundDrawable(ctx, resourceName);
+        if (gradient == null) {
+            Log.w(TAG, "melo-card-background not resolvable; leaving fallback decoration: "
+                    + resourceName);
+            return;
+        }
+        gradient.setCornerRadius(radiusPx);
+        cardView.setBackground(gradient);
+    }
+
+    /**
+     * Builds a {@link GradientDrawable} carrying the color for {@code name}.
+     * Always returns a RECTANGLE; the caller layers the corner radius on top.
+     * Returns {@code null} only when none of the three resolution strategies
+     * succeed.
+     */
+    private static GradientDrawable buildBackgroundDrawable(Context ctx, String name) {
+        if (ctx == null) return null;
+        Resources res = ctx.getResources();
+        String pkg = ctx.getPackageName();
+
+        int colorId = res.getIdentifier(name, "color", pkg);
+        if (colorId != 0) {
+            try {
+                ColorStateList csl = ContextCompat.getColorStateList(ctx, colorId);
+                if (csl != null) {
+                    GradientDrawable g = new GradientDrawable();
+                    g.setShape(GradientDrawable.RECTANGLE);
+                    g.setColor(csl);
+                    return g;
+                }
+            } catch (Throwable t) {
+                Log.d(TAG, "ColorStateList lookup failed for " + name + ": " + t.getMessage());
+            }
+            try {
+                int color = ContextCompat.getColor(ctx, colorId);
+                GradientDrawable g = new GradientDrawable();
+                g.setShape(GradientDrawable.RECTANGLE);
+                g.setColor(color);
+                return g;
+            } catch (Throwable t) {
+                Log.d(TAG, "ContextCompat.getColor failed for " + name + ": " + t.getMessage());
+            }
+        }
+
+        int drawableId = res.getIdentifier(name, "drawable", pkg);
+        if (drawableId != 0) {
+            try {
+                Drawable d = ContextCompat.getDrawable(ctx, drawableId);
+                if (d instanceof GradientDrawable) {
+                    return (GradientDrawable) d.mutate();
+                }
+                if (d instanceof ColorDrawable) {
+                    GradientDrawable g = new GradientDrawable();
+                    g.setShape(GradientDrawable.RECTANGLE);
+                    g.setColor(((ColorDrawable) d).getColor());
+                    return g;
+                }
+                Log.d(TAG, "Drawable for " + name
+                        + " is not a flat/gradient color; skipping radius wrap");
+            } catch (Throwable t) {
+                Log.d(TAG, "ContextCompat.getDrawable failed for " + name + ": " + t.getMessage());
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Mirrors A2UI padding shorthand to {@link View#setPadding} on the backing
+     * FrameLayout. Now that the Card backing view is a plain ViewGroup, this is
+     * a regular padding apply — no more legacy content-padding special case.
+     */
+    private void applyCardPadding() {
+        if (cardView == null) {
+            return;
+        }
         Map<String, Object> styles = extractStyles(this.properties);
         if (!hasPaddingStyle(styles)) {
             return;
         }
+        Context context = cardView.getContext();
 
-        CardView card = (CardView) cardView;
-        Context context = card.getContext();
-
-        int paddingLeft = card.getContentPaddingLeft();
-        int paddingTop = card.getContentPaddingTop();
-        int paddingRight = card.getContentPaddingRight();
-        int paddingBottom = card.getContentPaddingBottom();
+        int paddingLeft = cardView.getPaddingLeft();
+        int paddingTop = cardView.getPaddingTop();
+        int paddingRight = cardView.getPaddingRight();
+        int paddingBottom = cardView.getPaddingBottom();
 
         if (styles.containsKey("padding")) {
             int[] paddings = parseSpacingValues(styles.get("padding"), context);
@@ -109,7 +244,7 @@ public class MeloCardComponent extends A2UILayoutComponent {
             paddingBottom = StyleHelper.parseDimension(styles.get("padding-bottom"), context);
         }
 
-        card.setContentPadding(paddingLeft, paddingTop, paddingRight, paddingBottom);
+        cardView.setPadding(paddingLeft, paddingTop, paddingRight, paddingBottom);
     }
 
     private boolean hasPaddingStyle(Map<String, Object> styles) {
@@ -125,10 +260,7 @@ public class MeloCardComponent extends A2UILayoutComponent {
                         || styles.containsKey("padding-bottom"));
     }
 
-    /**
-     * Mirrors StyleHelper's CSS spacing shorthand parser for CardView content
-     * padding. Return order: top, right, bottom, left.
-     */
+    /** CSS spacing shorthand parser. Return order: top, right, bottom, left. */
     private int[] parseSpacingValues(Object value, Context context) {
         if (value == null) {
             return new int[]{0, 0, 0, 0};

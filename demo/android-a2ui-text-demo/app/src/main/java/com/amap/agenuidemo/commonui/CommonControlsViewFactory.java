@@ -49,18 +49,23 @@ public final class CommonControlsViewFactory {
 
     // ---- Card container (ViewGroup) ----
 
+    /**
+     * A2UI Card backing view. Deliberately backed by MeloFrameLayout /
+     * FrameLayout — never the AndroidX card container widget. That widget's
+     * setPadding semantics (content vs frame padding) and built-in background/radius/elevation fight
+     * the GradientDrawable we install for {@code melo-card-background}.
+     * FrameLayout + GradientDrawable + plain setPadding is a cleaner fit.
+     */
     public static android.view.ViewGroup createCardView(Context context) {
         try {
-            Class<?> clz = Class.forName(PKG + ".MeloCardView");
-            return (android.view.ViewGroup) clz.getConstructor(Context.class).newInstance(context);
-        } catch (Exception e) {
-            Log.d(TAG, "MeloCardView not available, trying MeloFrameLayout: " + e.getMessage());
-        }
-        try {
             Class<?> clz = Class.forName(PKG + ".MeloFrameLayout");
-            return (android.view.ViewGroup) clz.getConstructor(Context.class).newInstance(context);
-        } catch (Exception e2) {
-            Log.d(TAG, "Falling back to FrameLayout for Card: " + e2.getMessage());
+            android.view.ViewGroup view = (android.view.ViewGroup)
+                    clz.getConstructor(Context.class).newInstance(context);
+            Log.d(TAG, "Card backed by MeloFrameLayout");
+            return view;
+        } catch (Exception e) {
+            Log.d(TAG, "Card falling back to FrameLayout (MeloFrameLayout unavailable): "
+                    + e.getMessage());
             return new FrameLayout(context);
         }
     }
