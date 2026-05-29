@@ -1,6 +1,7 @@
 package com.amap.agenuidemo;
 
 import android.content.SharedPreferences;
+import android.content.res.Configuration;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -203,6 +204,12 @@ public class TextDemoActivity extends AppCompatActivity {
 
             aGenUI.registerFunction(new ToastFunction(this));
             addLog("ToastFunction registered");
+
+            // Register the demo-side common-controls theme (adds mlui* Text variants).
+            // Safe to load even when the proprietary AAR is absent — standard
+            // components simply ignore the melo-text-appearance style key.
+            com.amap.agenuidemo.commonui.CommonControlsThemeLoader.loadIfPresent(
+                    aGenUI, this, this::addLog);
 
             // Register Melo/Gua common controls if the proprietary SDK is available.
             // Must be called after initialize() and before SurfaceManager creation.
@@ -1197,6 +1204,21 @@ public class TextDemoActivity extends AppCompatActivity {
         while (logsContent.getChildCount() > 30) {
             logsContent.removeViewAt(logsContent.getChildCount() - 1);
         }
+    }
+
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        int mode = newConfig.uiMode & Configuration.UI_MODE_NIGHT_MASK;
+        String night;
+        switch (mode) {
+            case Configuration.UI_MODE_NIGHT_YES: night = "night"; break;
+            case Configuration.UI_MODE_NIGHT_NO: night = "day"; break;
+            default: night = "undefined"; break;
+        }
+        Log.i(TAG, "onConfigurationChanged handled in-place (uiMode=" + night
+                + ", orientation=" + newConfig.orientation + "); Activity NOT recreated");
+        addLog("Config changed: uiMode=" + night + ", orientation=" + newConfig.orientation);
     }
 
     @Override

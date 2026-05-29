@@ -519,6 +519,31 @@ Button 使用 Melo 容器（FrameLayout）而非 MeloButton。原因：
 - MeloButton / AppCompatButton 是 `Button` 子类，不是 `ViewGroup`，无法容纳 child View
 - 使用 MeloFrameLayout 保留 child 渲染和 Function Call 点击能力
 
+### Text → Mlui TextAppearance 适配
+
+为了让 Card 模板（如 `WeatherSummaryTemplate`）不再硬编码字号 / 颜色 / 字重，引入 5 个公司语义 Text variant：
+
+| variant | 映射到 | 使用场景 |
+|---------|--------|---------|
+| `mluiTitleLarge` | `MluiTextAppearance.Title.Large` | 主温度等需要醒目展示的大号字 |
+| `mluiTitle` | `MluiTextAppearance.Title` | 卡片标题 |
+| `mluiBody` | `MluiTextAppearance.Body` | 主信息正文 |
+| `mluiContent` | `MluiTextAppearance.Content` | 次级数据（高低温、风力、湿度） |
+| `mluiLabel` | `MluiTextAppearance.Label` | 辅助说明（位置 · 时间、tips、空状态） |
+
+实现链路：
+
+1. `assets/common_controls_theme.json` 在 default theme 下声明 5 个 variant，每个 variant 仅设置私有 styles key `melo-text-appearance`（值为 Android style 资源名，如 `MluiTextAppearance.Title.Large`）
+2. `CommonControlsThemeLoader.loadIfPresent()` 在 `AGenUI.initialize()` 之后、`SurfaceManager` 创建之前调用 `aGenUI.registerDefaultTheme(...)` 把 JSON 注册进 SDK
+3. C++ spec 引擎用 `nlohmann::merge_patch` 合并新 variant（不会影响 SDK 原有的 h1/h2/body/caption）
+4. 渲染时 `MeloTextComponent.onUpdateProperties()` 从 styles 中识别 `melo-text-appearance`，先剥离再传给 `StyleHelper`：
+   - 反射调用 `Resources.getIdentifier(name, "style", pkg)`，同时尝试原名和点替换为下划线（`MluiTextAppearance_Title_Large`）
+   - 解析到 style id 后调用 `setTextAppearance(styleId)`
+   - 然后再走 `StyleHelper.applyTextStyles()` 处理 `text-align` 等剩余样式，保证模板里显式写的属性能覆盖 TextAppearance
+5. AAR / style 资源缺失时仅 `Log.w` 一行，不抛异常；标准 `TextView` 会使用系统默认渲染，整个 Demo 仍能跑通
+
+> 写新 variant 时不要往里塞 `font-size` / `color` / `line-height` —— 会覆盖公司 TextAppearance 中的对应属性。要覆盖时显式写在组件 `styles` 上。
+
 ### 验证是否启用
 
 查看 App 日志：
@@ -547,6 +572,7 @@ demo/android-a2ui-text-demo/
 │   └── src/main/
 │       ├── AndroidManifest.xml
 │       ├── assets/
+│       │   ├── common_controls_theme.json   # mlui* Text variant 主题（注入到 SDK default theme）
 │       │   ├── fixtures/
 │       │   │   ├── weather.json
 │       │   │   ├── settings.json
@@ -592,7 +618,8 @@ demo/android-a2ui-text-demo/
 │       │       └── commonui/
 │       │           ├── CommonControlsViewFactory.java  # Melo/Gua 控件反射工厂
 │       │           ├── CommonControlsRegistry.java     # 注册入口
-│       │           ├── MeloTextComponent.java          # Text → MeloTextView
+│       │           ├── CommonControlsThemeLoader.java  # 注册 mlui* Text variant 主题
+│       │           ├── MeloTextComponent.java          # Text → MeloTextView（含 setTextAppearance）
 │       │           ├── MeloTextComponentFactory.java
 │       │           ├── MeloCardComponent.java          # Card → MeloCardView
 │       │           ├── MeloCardComponentFactory.java
@@ -661,6 +688,7 @@ public class RomAiUiGenerationProvider implements UiGenerationProvider {
 - 公司共通控件适配当前覆盖 3 个 A2UI 组件（Text/Card/Button），Row/Column 保留原生 FlexContainerLayout，其余 17 个标准组件未适配
 - Button 使用 Melo 容器而非 MeloButton（Button 非 ViewGroup 无法容纳 child）
 - minSdk 从 21 提升到 28（因公司 AAR 要求）
+- Mlui TextAppearance 适配仅落地了 5 个 Text 语义 variant（mluiTitleLarge/mluiTitle/mluiBody/mluiContent/mluiLabel），其他 A2UI variant（h1/h2/body/caption 等）仍走 SDK 原有逻辑；公司 AAR / 对应 style 资源缺失时 `setTextAppearance` 跳过，文字按系统默认渲染
 
 ## 下一步建议
 

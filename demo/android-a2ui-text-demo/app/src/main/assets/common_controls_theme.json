@@ -1,0 +1,35 @@
+{
+  "default": {
+    "Text": {
+      "variant": {
+        "enum": {
+          "mluiTitleLarge": {
+            "styles": {
+              "melo-text-appearance": "MluiTextAppearance.Title.Large"
+            }
+          },
+          "mluiTitle": {
+            "styles": {
+              "melo-text-appearance": "MluiTextAppearance.Title"
+            }
+          },
+          "mluiBody": {
+            "styles": {
+              "melo-text-appearance": "MluiTextAppearance.Body"
+            }
+          },
+          "mluiContent": {
+            "styles": {
+              "melo-text-appearance": "MluiTextAppearance.Content"
+            }
+          },
+          "mluiLabel": {
+            "styles": {
+              "melo-text-appearance": "MluiTextAppearance.Label"
+            }
+          }
+        }
+      }
+    }
+  }
+}

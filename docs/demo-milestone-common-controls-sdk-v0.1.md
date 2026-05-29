@@ -299,4 +299,57 @@ public void onUpdateProperties(Map<String, Object> properties) {
 | Card HTTP 里程碑 | `docs/demo-milestone-card-http-v0.1.md` |
 | Card 协议文档 | `docs/card-contracts/` |
 | Demo README | `demo/android-a2ui-text-demo/README.zh-CN.md` |
+
+---
+
+## 11. Text → Mlui TextAppearance 适配（小闭环）
+
+为了让模板不再硬编码 `font-size` / `color` / `font-weight`，引入了一组面向公司控件的 Text 语义 variant。整个改动只动 Text 一条链路，不涉及 Row/Column/Card/Button，也不修改 A2UI core spec。
+
+### 11.1 链路
+
+```
+WeatherSummaryTemplate (variant: mluiTitle / mluiTitleLarge / mluiBody / mluiContent / mluiLabel)
+  → SDK spec 引擎读取 default theme，把 variant 展开为 styles.{melo-text-appearance: "MluiTextAppearance.Xxx"}
+  → MeloTextComponent.onUpdateProperties() 读取 styles
+  → applyTextAppearanceIfPresent() 把 melo-text-appearance 从 styles 里剥离，
+    再调用 applyTextAppearance() → Resources.getIdentifier() → setTextAppearance()
+  → StyleHelper.applyTextStyles() 处理剩余样式（text-align、color 覆写等）
+```
+
+调用顺序刻意安排为 **先 setTextAppearance，再 applyTextStyles**，这样模板里如果显式带了 `color` / `text-align`，会覆盖 TextAppearance 中的同名属性。
+
+### 11.2 新增 / 修改的文件
+
+| 文件 | 角色 |
+|------|------|
+| `assets/common_controls_theme.json` | 声明 5 个 mlui* Text variant，每个变体只设置 `melo-text-appearance` 私有 key |
+| `commonui/CommonControlsThemeLoader.java` | 在 `AGenUI.initialize()` 之后、`SurfaceManager` 创建之前调用 `aGenUI.registerDefaultTheme(...)` 加载该 JSON |
+| `commonui/MeloTextComponent.java` | 识别 `melo-text-appearance`，通过 `Resources.getIdentifier()` 反射解析 style id，调用 `setTextAppearance` |
+| `card/template/WeatherSummaryTemplate.java` | 主要 Text 全部改用 mlui* variant，移除 `font-size` / `color` / `font-weight` 硬编码 |
+| `TextDemoActivity.java` | 增加一行 `CommonControlsThemeLoader.loadIfPresent(...)` |
+
+### 11.3 为什么 MluiTextAppearance 不进 A2UI core spec
+
+- core spec 是跨平台的；MluiTextAppearance 是 Android 公司控件包的私有 style 资源，iOS / HarmonyOS 没有对应物
+- core spec 不应该依赖任何平台特定的资源命名约定（dot/underscore、R.style）
+- 用 demo 侧 theme + 私有 styles key（`melo-text-appearance`）的方式，模型 / 模板写出来仍是合法 A2UI；其他平台拿到这份 JSON 不会因为未知 variant 而崩溃（spec 引擎对未注册 variant 是宽容的，未知 styles key 也会被 StyleHelper 忽略）
+
+### 11.4 setTextAppearance 的 fallback 策略
+
+`MeloTextComponent.resolveStyleId()` 同时尝试两种命名：
+- 原始名（如 `MluiTextAppearance.Title.Large`）
+- 把点替换成下划线（`MluiTextAppearance_Title_Large`），匹配 Android style 资源在 R 类中的命名
+
+走到 `Resources.getIdentifier()` 返回 0 时，仅 `Log.w` 一行，不抛异常，不影响后续 `StyleHelper.applyTextStyles()`。所以三种情形都不会崩溃：
+1. AAR 存在、style 资源存在 → `setTextAppearance` 生效
+2. AAR 不存在、style 资源缺失 → 跳过 `setTextAppearance`，文字仍按系统默认渲染
+3. style 名拼错 → 同上，仅日志告警
+
+### 11.5 写新 Text variant 时的注意事项
+
+- variant 名以 `mlui` 开头，避免和 A2UI 标准 variant（h1/h2/body/caption 等）冲突
+- 每个 variant 只放 `melo-text-appearance`；不要把 `font-size` / `color` / `line-height` 也写进去，否则会覆盖公司 TextAppearance 中的对应属性
+- 模板里如果确实要覆盖某个属性，请显式写在组件的 `styles` 里（会覆盖 TextAppearance）
+- 在 `WeatherSummaryTemplateTest` 里对照新增 `render_basic_textsUseMluiVariants` 和 `render_basic_textStylesOmitFontSizeColorWeight` 两条测试，保证未来不会有人在模板里偷偷加回硬编码
 | 项目级 CLAUDE.md | `CLAUDE.md`（"公司共通控件 SDK 适配"章节） |

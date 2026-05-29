@@ -1,0 +1,38 @@
+# Root .gitignore — only repo-root-level IDE/OS/junk.
+# Module-level build outputs (build/, .gradle/, Pods/, *.aar, etc.)
+# are handled by the per-module .gitignore files under platforms/,
+# playground/, demo/, etc. Do not duplicate them here.
+
+# JetBrains IDE (IntelliJ / Android Studio) at the repo root.
+# Keep .idea/ out entirely — even per-file overrides like modules.xml
+# leak machine-specific paths.
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# VS Code (workspace-level settings are personal, not project).
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Local-only Claude / agent scratch files at repo root.
+# .claude/ holds local hooks/permissions/plans that are per-developer.
+# If a project later wants to share .claude/settings.json or
+# .claude/commands/, list them with `!` exceptions here.
+.claude/
+
+# Python venv / cache that may appear at repo root during ad-hoc scripts.
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Editor swap / backup files
+*.swp
+*.swo
+*~

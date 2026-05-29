@@ -8,11 +8,26 @@ import org.json.JSONObject;
  *
  * Delegated from CardTemplateRenderer for WEATHER_SUMMARY card type.
  * Output is always 3 messages: [createSurface, updateComponents, "{}"].
+ *
+ * <p>Text components use the demo-side semantic variants registered by
+ * {@code assets/common_controls_theme.json} (mluiTitle / mluiTitleLarge /
+ * mluiBody / mluiContent / mluiLabel). The C++ spec engine expands each
+ * variant to a {@code melo-text-appearance} style key which MeloTextComponent
+ * applies via {@code setTextAppearance}. Standard Java components ignore the
+ * key, so the template still renders sensibly when the proprietary AAR is
+ * absent.
  */
 public class WeatherSummaryTemplate {
 
     private static final String VERSION = "v0.9";
     private static final String CATALOG_ID = "https://a2ui.org/specification/v0_9/standard_catalog.json";
+
+    // Demo-side semantic variants (see assets/common_controls_theme.json).
+    static final String VARIANT_TITLE = "mluiTitle";
+    static final String VARIANT_TITLE_LARGE = "mluiTitleLarge";
+    static final String VARIANT_BODY = "mluiBody";
+    static final String VARIANT_CONTENT = "mluiContent";
+    static final String VARIANT_LABEL = "mluiLabel";
 
     public static String[] render(JSONObject data) throws Exception {
         String surfaceId = "card_" + data.optString("requestId", "unknown");
@@ -38,27 +53,25 @@ public class WeatherSummaryTemplate {
                         .put("gap", "16px")
                         .put("background-color", "#F5F5F5")));
 
-        // Title
+        // Title — semantic variant; weight/size come from MluiTextAppearance.Title
         componentArray.put(new JSONObject()
                 .put("id", "title-text")
                 .put("component", "Text")
                 .put("text", title)
-                .put("variant", "h2")
+                .put("variant", VARIANT_TITLE)
                 .put("styles", new JSONObject()
-                        .put("text-align", "left")
-                        .put("font-weight", "bold")));
+                        .put("text-align", "left")));
 
-        // Location + time line (optional)
+        // Location + time line (optional, auxiliary label)
         if (!locationTime.isEmpty()) {
             rootChildren.put("location-time-text");
             componentArray.put(new JSONObject()
                     .put("id", "location-time-text")
                     .put("component", "Text")
                     .put("text", locationTime)
-                    .put("variant", "body")
+                    .put("variant", VARIANT_LABEL)
                     .put("styles", new JSONObject()
-                            .put("text-align", "left")
-                            .put("color", "#00000099")));
+                            .put("text-align", "left")));
         }
 
         // Weather card
@@ -93,10 +106,9 @@ public class WeatherSummaryTemplate {
                     .put("id", "condition-text")
                     .put("component", "Text")
                     .put("text", "暂无天气数据")
-                    .put("variant", "body")
+                    .put("variant", VARIANT_LABEL)
                     .put("styles", new JSONObject()
-                            .put("text-align", "left")
-                            .put("color", "#00000099")));
+                            .put("text-align", "left")));
         } else {
             componentArray.put(new JSONObject()
                     .put("id", "primary-row")
@@ -108,17 +120,16 @@ public class WeatherSummaryTemplate {
                     .put("id", "condition-text")
                     .put("component", "Text")
                     .put("text", condition)
-                    .put("variant", "body")
+                    .put("variant", VARIANT_BODY)
                     .put("styles", new JSONObject().put("text-align", "left")));
 
+            // Big temperature number — uses MluiTextAppearance.Title.Large
             componentArray.put(new JSONObject()
                     .put("id", "temperature-text")
                     .put("component", "Text")
                     .put("text", temperature)
-                    .put("variant", "h2")
-                    .put("styles", new JSONObject()
-                            .put("text-align", "left")
-                            .put("font-weight", "bold")));
+                    .put("variant", VARIANT_TITLE_LARGE)
+                    .put("styles", new JSONObject().put("text-align", "left")));
         }
 
         // High/Low row (optional)
@@ -142,20 +153,16 @@ public class WeatherSummaryTemplate {
                         .put("id", "high-text")
                         .put("component", "Text")
                         .put("text", "最高 " + high)
-                        .put("variant", "body")
-                        .put("styles", new JSONObject()
-                                .put("text-align", "left")
-                                .put("color", "#00000099")));
+                        .put("variant", VARIANT_CONTENT)
+                        .put("styles", new JSONObject().put("text-align", "left")));
             }
             if (!low.isEmpty()) {
                 componentArray.put(new JSONObject()
                         .put("id", "low-text")
                         .put("component", "Text")
                         .put("text", "最低 " + low)
-                        .put("variant", "body")
-                        .put("styles", new JSONObject()
-                                .put("text-align", "left")
-                                .put("color", "#00000099")));
+                        .put("variant", VARIANT_CONTENT)
+                        .put("styles", new JSONObject().put("text-align", "left")));
             }
         }
 
@@ -182,30 +189,24 @@ public class WeatherSummaryTemplate {
                         .put("id", "airquality-text")
                         .put("component", "Text")
                         .put("text", "空气质量: " + airQuality)
-                        .put("variant", "body")
-                        .put("styles", new JSONObject()
-                                .put("text-align", "left")
-                                .put("color", "#00000099")));
+                        .put("variant", VARIANT_CONTENT)
+                        .put("styles", new JSONObject().put("text-align", "left")));
             }
             if (!humidity.isEmpty()) {
                 componentArray.put(new JSONObject()
                         .put("id", "humidity-text")
                         .put("component", "Text")
                         .put("text", "湿度: " + humidity)
-                        .put("variant", "body")
-                        .put("styles", new JSONObject()
-                                .put("text-align", "left")
-                                .put("color", "#00000099")));
+                        .put("variant", VARIANT_CONTENT)
+                        .put("styles", new JSONObject().put("text-align", "left")));
             }
             if (!wind.isEmpty()) {
                 componentArray.put(new JSONObject()
                         .put("id", "wind-text")
                         .put("component", "Text")
                         .put("text", "风力: " + wind)
-                        .put("variant", "body")
-                        .put("styles", new JSONObject()
-                                .put("text-align", "left")
-                                .put("color", "#00000099")));
+                        .put("variant", VARIANT_CONTENT)
+                        .put("styles", new JSONObject().put("text-align", "left")));
             }
         }
 
@@ -231,10 +232,8 @@ public class WeatherSummaryTemplate {
                         .put("id", "tips-item_" + i)
                         .put("component", "Text")
                         .put("text", "• " + tipText)
-                        .put("variant", "body")
-                        .put("styles", new JSONObject()
-                                .put("text-align", "left")
-                                .put("color", "#00000099")));
+                        .put("variant", VARIANT_LABEL)
+                        .put("styles", new JSONObject().put("text-align", "left")));
             }
         }
 

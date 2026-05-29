@@ -260,6 +260,114 @@ public class WeatherSummaryTemplateTest {
         assertEquals("", WeatherSummaryTemplate.formatLocationTime("", ""));
     }
 
+    @Test
+    public void render_basic_textsUseMluiVariants() throws Exception {
+        JSONObject data = new JSONObject()
+                .put("requestId", "weather_variants")
+                .put("title", "今日天气")
+                .put("location", "上海")
+                .put("updatedAt", "14:30 更新")
+                .put("current", new JSONObject()
+                        .put("condition", "晴转多云")
+                        .put("temperature", 26)
+                        .put("high", 30)
+                        .put("low", 18)
+                        .put("airQuality", "良")
+                        .put("humidity", "65%")
+                        .put("wind", "东南风 3级"))
+                .put("tips", new JSONArray()
+                        .put("紫外线较强，注意防晒")
+                        .put("早晚温差较大，注意添衣"));
+
+        String[] messages = WeatherSummaryTemplate.render(data);
+        JSONArray components = new JSONObject(messages[1])
+                .getJSONObject("updateComponents").getJSONArray("components");
+
+        assertEquals(WeatherSummaryTemplate.VARIANT_TITLE,
+                findComponentById(components, "title-text").getString("variant"));
+        assertEquals(WeatherSummaryTemplate.VARIANT_LABEL,
+                findComponentById(components, "location-time-text").getString("variant"));
+        assertEquals(WeatherSummaryTemplate.VARIANT_BODY,
+                findComponentById(components, "condition-text").getString("variant"));
+        assertEquals(WeatherSummaryTemplate.VARIANT_TITLE_LARGE,
+                findComponentById(components, "temperature-text").getString("variant"));
+        assertEquals(WeatherSummaryTemplate.VARIANT_CONTENT,
+                findComponentById(components, "high-text").getString("variant"));
+        assertEquals(WeatherSummaryTemplate.VARIANT_CONTENT,
+                findComponentById(components, "low-text").getString("variant"));
+        assertEquals(WeatherSummaryTemplate.VARIANT_CONTENT,
+                findComponentById(components, "airquality-text").getString("variant"));
+        assertEquals(WeatherSummaryTemplate.VARIANT_CONTENT,
+                findComponentById(components, "humidity-text").getString("variant"));
+        assertEquals(WeatherSummaryTemplate.VARIANT_CONTENT,
+                findComponentById(components, "wind-text").getString("variant"));
+        assertEquals(WeatherSummaryTemplate.VARIANT_LABEL,
+                findComponentById(components, "tips-item_0").getString("variant"));
+        assertEquals(WeatherSummaryTemplate.VARIANT_LABEL,
+                findComponentById(components, "tips-item_1").getString("variant"));
+    }
+
+    @Test
+    public void render_basic_textStylesOmitFontSizeColorWeight() throws Exception {
+        JSONObject data = new JSONObject()
+                .put("requestId", "weather_no_hardcoded_styles")
+                .put("title", "今日天气")
+                .put("location", "上海")
+                .put("updatedAt", "14:30 更新")
+                .put("current", new JSONObject()
+                        .put("condition", "晴转多云")
+                        .put("temperature", 26)
+                        .put("high", 30)
+                        .put("low", 18)
+                        .put("airQuality", "良")
+                        .put("humidity", "65%")
+                        .put("wind", "东南风 3级"))
+                .put("tips", new JSONArray()
+                        .put("紫外线较强，注意防晒"));
+
+        String[] messages = WeatherSummaryTemplate.render(data);
+        JSONArray components = new JSONObject(messages[1])
+                .getJSONObject("updateComponents").getJSONArray("components");
+
+        String[] textIds = {
+                "title-text", "location-time-text", "condition-text", "temperature-text",
+                "high-text", "low-text", "airquality-text", "humidity-text", "wind-text",
+                "tips-item_0"
+        };
+        for (String id : textIds) {
+            JSONObject comp = findComponentById(components, id);
+            assertNotNull("Missing text component: " + id, comp);
+            JSONObject styles = comp.optJSONObject("styles");
+            if (styles == null) continue;
+            assertFalse(id + " should not hardcode font-size", styles.has("font-size"));
+            assertFalse(id + " should not hardcode color", styles.has("color"));
+            assertFalse(id + " should not hardcode font-weight", styles.has("font-weight"));
+            assertFalse(id + " should not hardcode line-height", styles.has("line-height"));
+        }
+    }
+
+    @Test
+    public void render_minimalPlaceholder_usesMluiLabelVariant() throws Exception {
+        JSONObject data = new JSONObject()
+                .put("requestId", "weather_minimal_variant")
+                .put("title", "天气")
+                .put("current", new JSONObject());
+
+        String[] messages = WeatherSummaryTemplate.render(data);
+        JSONArray components = new JSONObject(messages[1])
+                .getJSONObject("updateComponents").getJSONArray("components");
+
+        JSONObject placeholder = findComponentById(components, "condition-text");
+        assertNotNull(placeholder);
+        assertEquals(WeatherSummaryTemplate.VARIANT_LABEL, placeholder.getString("variant"));
+        JSONObject styles = placeholder.optJSONObject("styles");
+        if (styles != null) {
+            assertFalse(styles.has("font-size"));
+            assertFalse(styles.has("color"));
+            assertFalse(styles.has("font-weight"));
+        }
+    }
+
     private static JSONObject findComponentById(JSONArray components, String id) throws Exception {
         for (int i = 0; i < components.length(); i++) {
             JSONObject comp = components.getJSONObject(i);
