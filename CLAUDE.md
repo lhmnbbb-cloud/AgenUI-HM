@@ -264,7 +264,7 @@ Demo 通过 `CommonControlsRegistry` 在 A2UI 渲染层适配公司 Melo/Gua 控
 - **注册入口**：`CommonControlsRegistry.registerIfAvailable(aGenUI, context)`，在 `AGenUI.initialize()` 之后、`SurfaceManager` 创建之前调用
 - **反射加载**：所有 Melo 控件通过 `Class.forName()` 反射创建，无编译期依赖。反射失败自动 fallback 到标准 Android View
 - **A2UI 协议无感知**：A2UI JSON 仍使用标准组件名，CardData 协议不变
-- **已适配组件**：Text → MeloTextView、Card → MeloFrameLayout（fallback FrameLayout）+ GradientDrawable、Button → MeloFrameLayout 容器。Row/Column 保留原生 FlexContainerLayout（LinearLayout 替代会丢失 Flexbox 语义）
+- **已适配组件**：Text → MeloTextView、Card → MeloFrameLayout（fallback FrameLayout）+ GradientDrawable、Button → MeloFrameLayout 容器 + StateListDrawable（私有 `melo-button-*` keys）。Row/Column 保留原生 FlexContainerLayout（LinearLayout 替代会丢失 Flexbox 语义）
 - **minSdk 28**：因公司 AAR 要求
 - **验证方法**：App 日志 `"Common controls available: true/false"`
 
@@ -278,6 +278,39 @@ Demo 通过 `CommonControlsRegistry` 在 A2UI 渲染层适配公司 Melo/Gua 控
 - `common_controls_theme.json` 的 Card variant fallback 装饰保持可见（`#FFFFFF + 16px/0px + filter:none`），AAR 缺失时 StyleHelper 仍画出白底圆角卡片
 
 **改 Card 渲染前再读一次源码**：扩展 / 适配公司控件时不能默认"Card 后面是 CardView"，已经不是了。
+
+#### Button backing view 是 FrameLayout 容器 + StateListDrawable，不是 MeloButton
+
+A2UI Button 是 **容器 + child component** 模型，child Text 单独渲染后加入 Button 容器，点击通过 `setOnClickListener` 触发 Function Call。MeloButton / AppCompatButton 是 `Button` 子类不是 ViewGroup，无法承载 child。当前 Button 实现：
+
+- backing view 由 `CommonControlsViewFactory.createFrameLayout(context)` 反射 `MeloFrameLayout`，fallback 到 `android.widget.FrameLayout`
+- 视觉走 4 个 `mluiButton*` variant：Primary / Secondary / Danger / Ghost。资源使用 AAR 中 `mlui_button_filled_bg_color` / `mlui_button_grey_bg_color` / `mlui_button_warning_bg_color` ColorStateList（**带 `_button_` 不是 `_btn_`**），hex fallback `#007AFF / #E8E8E8 / #E54545 / #00000000`
+- 私有 styles key：`melo-button-background` / `melo-button-disabled-background` / `melo-button-radius` / `melo-button-text-color`
+- `MeloButtonComponent.onUpdateProperties()` 顺序：`super` → `applyProperties()` → `applyButtonAppearanceIfPresent()` 安装 `StateListDrawable`（disabled → normal），pressed 由 foreground overlay 独立驱动，公司视觉一定赢。**初始创建路径**通过 override `createView(Context, ViewGroup)` 镜像 MeloCardComponent：`super.createView(...)` 之后 `applyProperties()` + `applyButtonAppearanceIfPresent()`，防止"直接 `Surface.addComponent` 无后续 update" 链路漏样式
+- 资源解析顺序与 Card 一致：hex 优先 → `getColorStateList()` → `getColor()` → `getDrawable()`，**必须 ColorStateList 优先**否则丢日夜切换
+- **AAR 怪癖**：AAR 同时存在两组同义资源：
+  - `mlui_button_*_bg_color`（带 `_button_`）—— `res/color/` 下的 selector，内置 enabled/disabled × day/night **四态**，是正确的入口
+  - `mlui_btn_*_bg_color`（带 `_btn_`）—— 只有 `_day`/`_night` flat 色，**没有 base CSL**，是旧路径
+  - 早期 theme 误用了带 `_btn_` 的拍平色，代码靠 `buildDayNightDrawable()` 现场合成 CSL 兜底；现已迁移到带 `_button_` 的 selector，selector 自身覆盖 disabled，theme 里不需要再单独传 `melo-button-disabled-background`（Ghost 透明态除外）
+- pressed 状态：通过 `buttonContainer.setForeground(R.drawable.mlui_button_foreground)` 安装 AAR 的 `mlui_button_foreground` selector（`state_pressed` → `mlui_btn_pressed_foreground_color` 半透明覆盖 + 12dp 圆角）；AAR 缺失或资源解析失败时仅 `Log.d` 跳过，pressed 无 overlay 但功能不受影响。**已弃用** `setAlpha(204)` 派生方案和 `melo-button-pressed-background` 私有 key
+- 文字色：通过 `melo-button-text-color` 注入 ColorStateList（AAR 的 `mlui_btn_*_text_color` selector，覆盖 enabled/pressed/disabled × day/night）。实现链路：`onCreateView` 装 `OnHierarchyChangeListener` → `onChildViewAdded` 用 `View.post()` 推到队尾（让出给 child Text 的 `setTextAppearance(MluiTextAppearance.Label)`，避免 AAR `android:textColor=@color/mlui_text_color_secondary` 反向覆盖）→ 递归子树对每个 `TextView` 调 `setTextColor(csl)` + `setDuplicateParentStateEnabled(true)` + 关掉子 view 的 `clickable/focusable`（否则子 view 拦截 pressed 状态，CSL 永远是 normal 色）。模板里不要再硬编码 child Text 的 `color`
+- disabled 行为：`disable: true` **或** `checks.result == false` 同时 `setClickable(false) + setEnabled(false)`，Function Call 不触发。两个输入合并后 `enabled = !disable && checksResult` 一次性 set（早期分两步 set，`disable:false` 会覆盖掉 `checks.result:false`，**已修**）
+- ghost 默认透明，依赖 child Text 的 `color` 提供可见性
+- Button fixture 写法：`{component: "Button", variant: "mluiButtonPrimary", child: "btn-label", action: {functionCall: ...}}` + 单独的 child Text 组件（不在 `children` 里，通过 `child` id 引用）
+
+**改 Button 视觉前再读一次源码**：不要往 `MeloButton` / `AppCompatButton` 退化，会丢 child + action 链路。
+
+#### Toast 必须走 MeloToastHelper，不能直接 `android.widget.Toast`
+
+定制 ROM 上 `android.widget.Toast` 静默不显示（系统层有过滤），用户在真机上看不到任何提示。Demo 全部 toast 调用必须通过 `commonui.MeloToastHelper.show(context, text, duration)`：
+
+- **反射调用 `MeloToast.makeText(Context, CharSequence, int, int).show()`**，目标类 `com.meloui.car.ui.widget.Toast`，4 参重载的 `makeText` 接受 `displayId` 参数并走 4 参构造器（不调 `Context.getDisplayId()`）
+- **必须用 4 参 `makeText(ctx, text, dur, displayId)`，不能用 3 参重载**：3 参 `makeText` 内部走 3 参构造器，该构造器调 `Context.getDisplayId()`（API 30+），在 API 29 设备上抛 `NoSuchMethodError`。硬编码 `displayId = 0`（主屏）
+- **错误可观测性**：`InvocationTargetException` 必须 unwrap 到 `getCause()`（否则 `getMessage()` 返回 `null`，调试时只能看到 "failed: null"）。任何调用失败后 `sAvailable = false` 短路后续调用，避免反复抛
+- AAR 缺失 / 反射失败 → 自动 fallback 到 `android.widget.Toast`（unbranded build 仍可见）
+- 现有调用点：`ToastFunction.execute()`（A2UI Function Call 的 toast）+ `TextDemoActivity` 全部用户提示
+- `MeloToastHelperTest` 用 source-level 守护：除 `MeloToastHelper.java` 自己（fallback 路径）外，任何 demo 源文件出现 `Toast.makeText(...)` 都会让单测红；helper 自身必须引用 `com.meloui.car.ui.widget.Toast` FQN + 解析 4 参 `makeText` 签名（`Context.class, CharSequence.class, int.class, int.class`）
+- duration 常量复用 `android.widget.Toast.LENGTH_SHORT/LENGTH_LONG`（两边都是 0/1，MeloToast 编码一致）
 
 #### AAR 路径必须用 rootProject.file()
 

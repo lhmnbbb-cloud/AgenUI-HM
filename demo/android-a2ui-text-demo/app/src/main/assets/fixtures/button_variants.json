@@ -1,0 +1,106 @@
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "fixture_button_variants",
+      "catalogId": "https://a2ui.org/specification/v0_9/standard_catalog.json"
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "fixture_button_variants",
+      "components": [
+        {
+          "id": "root",
+          "component": "Column",
+          "children": [
+            "title",
+            "row-enabled-label", "row-enabled",
+            "row-disabled-label", "row-disabled",
+            "hint"
+          ],
+          "align": "stretch",
+          "styles": {
+            "padding": "20px",
+            "gap": "16px",
+            "background-color": "#F5F5F5"
+          }
+        },
+
+        { "id": "title", "component": "Text", "text": "Button Variants", "variant": "mluiTitle" },
+
+        { "id": "row-enabled-label", "component": "Text", "text": "Enabled (按住应看到 pressed overlay)", "variant": "mluiBody", "styles": { "color": "#666666" } },
+        {
+          "id": "row-enabled",
+          "component": "Row",
+          "children": ["btn-primary-on", "btn-secondary-on", "btn-danger-on", "btn-ghost-on"],
+          "styles": { "gap": "12px", "flex-wrap": "wrap" }
+        },
+        {
+          "id": "btn-primary-on", "component": "Button", "variant": "mluiButtonPrimary",
+          "child": "label-primary-on", "styles": { "padding": "12px 24px" },
+          "action": { "functionCall": { "call": "toast", "args": { "value": "Primary" } } }
+        },
+        { "id": "label-primary-on", "component": "Text", "text": "主要", "variant": "mluiLabel", "styles": { "text-align": "center" } },
+        {
+          "id": "btn-secondary-on", "component": "Button", "variant": "mluiButtonSecondary",
+          "child": "label-secondary-on", "styles": { "padding": "12px 24px" },
+          "action": { "functionCall": { "call": "toast", "args": { "value": "Secondary" } } }
+        },
+        { "id": "label-secondary-on", "component": "Text", "text": "次要", "variant": "mluiLabel", "styles": { "text-align": "center" } },
+        {
+          "id": "btn-danger-on", "component": "Button", "variant": "mluiButtonDanger",
+          "child": "label-danger-on", "styles": { "padding": "12px 24px" },
+          "action": { "functionCall": { "call": "toast", "args": { "value": "Danger" } } }
+        },
+        { "id": "label-danger-on", "component": "Text", "text": "危险", "variant": "mluiLabel", "styles": { "text-align": "center" } },
+        {
+          "id": "btn-ghost-on", "component": "Button", "variant": "mluiButtonGhost",
+          "child": "label-ghost-on", "styles": { "padding": "12px 24px" },
+          "action": { "functionCall": { "call": "toast", "args": { "value": "Ghost" } } }
+        },
+        { "id": "label-ghost-on", "component": "Text", "text": "幽灵", "variant": "mluiLabel", "styles": { "text-align": "center" } },
+
+        { "id": "row-disabled-label", "component": "Text", "text": "Disabled (按下不应触发 toast / overlay)", "variant": "mluiBody", "styles": { "color": "#666666" } },
+        {
+          "id": "row-disabled",
+          "component": "Row",
+          "children": ["btn-primary-off", "btn-secondary-off", "btn-danger-off", "btn-ghost-off"],
+          "styles": { "gap": "12px", "flex-wrap": "wrap" }
+        },
+        {
+          "id": "btn-primary-off", "component": "Button", "variant": "mluiButtonPrimary",
+          "child": "label-primary-off", "disable": true, "styles": { "padding": "12px 24px" },
+          "action": { "functionCall": { "call": "toast", "args": { "value": "Primary (不应触发)" } } }
+        },
+        { "id": "label-primary-off", "component": "Text", "text": "主要", "variant": "mluiLabel", "styles": { "text-align": "center" } },
+        {
+          "id": "btn-secondary-off", "component": "Button", "variant": "mluiButtonSecondary",
+          "child": "label-secondary-off", "disable": true, "styles": { "padding": "12px 24px" },
+          "action": { "functionCall": { "call": "toast", "args": { "value": "Secondary (不应触发)" } } }
+        },
+        { "id": "label-secondary-off", "component": "Text", "text": "次要", "variant": "mluiLabel", "styles": { "text-align": "center" } },
+        {
+          "id": "btn-danger-off", "component": "Button", "variant": "mluiButtonDanger",
+          "child": "label-danger-off", "disable": true, "styles": { "padding": "12px 24px" },
+          "action": { "functionCall": { "call": "toast", "args": { "value": "Danger (不应触发)" } } }
+        },
+        { "id": "label-danger-off", "component": "Text", "text": "危险", "variant": "mluiLabel", "styles": { "text-align": "center" } },
+        {
+          "id": "btn-ghost-off", "component": "Button", "variant": "mluiButtonGhost",
+          "child": "label-ghost-off", "disable": true, "styles": { "padding": "12px 24px" },
+          "action": { "functionCall": { "call": "toast", "args": { "value": "Ghost (不应触发)" } } }
+        },
+        { "id": "label-ghost-off", "component": "Text", "text": "幽灵", "variant": "mluiLabel", "styles": { "text-align": "center" } },
+
+        {
+          "id": "hint", "component": "Text",
+          "text": "验收：圆角应对齐 AAR 12dp；按下 Enabled 行任一按钮应看到 pressed overlay 覆盖；文字色应跟随按钮状态（pressed 变色/disabled 变灰）；adb shell cmd uimode night yes/no 切换主题色应跟随",
+          "variant": "mluiContent", "styles": { "color": "#999999" }
+        }
+      ]
+    }
+  },
+  {}
+]

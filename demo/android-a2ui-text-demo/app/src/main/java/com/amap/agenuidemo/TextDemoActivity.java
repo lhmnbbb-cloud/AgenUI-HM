@@ -29,6 +29,7 @@ import com.amap.agenuidemo.card.CardDataProvider;
 import com.amap.agenuidemo.card.CardRenderResult;
 import com.amap.agenuidemo.card.CardTemplateRenderer;
 import com.amap.agenuidemo.commonui.CommonControlsRegistry;
+import com.amap.agenuidemo.commonui.MeloToastHelper;
 
 import org.json.JSONObject;
 
@@ -178,12 +179,12 @@ public class TextDemoActivity extends AppCompatActivity {
                     java.io.FileWriter writer = new java.io.FileWriter(file);
                     writer.write(json);
                     writer.close();
-                    Toast.makeText(this, "已复制到剪贴板\n已保存: " + file.getAbsolutePath(), Toast.LENGTH_LONG).show();
+                    MeloToastHelper.show(this, "已复制到剪贴板\n已保存: " + file.getAbsolutePath(), Toast.LENGTH_LONG);
                 } else {
-                    Toast.makeText(this, "已复制到剪贴板\n外部存储不可用", Toast.LENGTH_SHORT).show();
+                    MeloToastHelper.show(this, "已复制到剪贴板\n外部存储不可用", Toast.LENGTH_SHORT);
                 }
             } catch (Exception e) {
-                Toast.makeText(this, "已复制到剪贴板\n保存失败: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                MeloToastHelper.show(this, "已复制到剪贴板\n保存失败: " + e.getMessage(), Toast.LENGTH_SHORT);
             }
         });
         tvDebugErrors = findViewById(R.id.tvDebugErrors);
@@ -422,9 +423,9 @@ public class TextDemoActivity extends AppCompatActivity {
         String input = etInput.getText().toString().trim();
         if (input.isEmpty()) {
             if (currentProviderType == ProviderType.MOCK) {
-                Toast.makeText(this, "请输入文本", Toast.LENGTH_SHORT).show();
+                MeloToastHelper.show(this, "请输入文本", Toast.LENGTH_SHORT);
             } else if (currentProviderType == ProviderType.CARD_JSON_INPUT) {
-                Toast.makeText(this, "请输入 CardData JSON", Toast.LENGTH_SHORT).show();
+                MeloToastHelper.show(this, "请输入 CardData JSON", Toast.LENGTH_SHORT);
             }
             if (currentProviderType == ProviderType.MOCK || currentProviderType == ProviderType.CARD_JSON_INPUT) {
                 return;
@@ -432,7 +433,7 @@ public class TextDemoActivity extends AppCompatActivity {
         }
 
         if (aGenUI == null || surfaceManager == null) {
-            Toast.makeText(this, "AGenUI 未初始化", Toast.LENGTH_SHORT).show();
+            MeloToastHelper.show(this, "AGenUI 未初始化", Toast.LENGTH_SHORT);
             return;
         }
 
@@ -468,7 +469,7 @@ public class TextDemoActivity extends AppCompatActivity {
                 tvValidationBadge.setTextColor(0xFFCC0000);
                 setBusy(false);
                 updateDebugInfo();
-                Toast.makeText(this, "请选择 Card Fixture", Toast.LENGTH_SHORT).show();
+                MeloToastHelper.show(this, "请选择 Card Fixture", Toast.LENGTH_SHORT);
                 return;
             }
 
@@ -483,7 +484,7 @@ public class TextDemoActivity extends AppCompatActivity {
             setBusy(false);
             updateDebugInfo();
             addLog("Card fixture render failed: " + e.getMessage());
-            Toast.makeText(this, "卡片渲染失败: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            MeloToastHelper.show(this, "卡片渲染失败: " + e.getMessage(), Toast.LENGTH_SHORT);
         }
     }
 
@@ -496,7 +497,7 @@ public class TextDemoActivity extends AppCompatActivity {
             tvValidationBadge.setTextColor(0xFFCC0000);
             setBusy(false);
             updateDebugInfo();
-            Toast.makeText(this, "卡片渲染失败", Toast.LENGTH_SHORT).show();
+            MeloToastHelper.show(this, "卡片渲染失败", Toast.LENGTH_SHORT);
             return;
         }
 
@@ -558,7 +559,7 @@ public class TextDemoActivity extends AppCompatActivity {
                 tvValidationBadge.setTextColor(0xFFCC0000);
                 setBusy(false);
                 updateDebugInfo();
-                Toast.makeText(this, "请输入 CardData JSON", Toast.LENGTH_SHORT).show();
+                MeloToastHelper.show(this, "请输入 CardData JSON", Toast.LENGTH_SHORT);
                 return;
             }
 
@@ -573,14 +574,14 @@ public class TextDemoActivity extends AppCompatActivity {
             setBusy(false);
             updateDebugInfo();
             addLog("Card JSON render failed: " + e.getMessage());
-            Toast.makeText(this, "卡片渲染失败: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            MeloToastHelper.show(this, "卡片渲染失败: " + e.getMessage(), Toast.LENGTH_SHORT);
         }
     }
 
     private void handleCardHttpGenerate(String input) {
         String url = etCardHttpUrl.getText().toString().trim();
         if (url.isEmpty()) {
-            Toast.makeText(this, "请输入 Card HTTP endpoint URL", Toast.LENGTH_SHORT).show();
+            MeloToastHelper.show(this, "请输入 Card HTTP endpoint URL", Toast.LENGTH_SHORT);
             return;
         }
 
@@ -621,7 +622,7 @@ public class TextDemoActivity extends AppCompatActivity {
                         setBusy(false);
                         updateDebugInfo();
                         addLog("Card render failed: " + e.getMessage());
-                        Toast.makeText(this, "卡片渲染失败: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                        MeloToastHelper.show(this, "卡片渲染失败: " + e.getMessage(), Toast.LENGTH_LONG);
                     }
                 });
             } catch (CardHttpProvider.CardHttpException e) {
@@ -634,7 +635,7 @@ public class TextDemoActivity extends AppCompatActivity {
                     setBusy(false);
                     updateDebugInfo();
                     addLog("Card HTTP error: " + e.getMessage());
-                    Toast.makeText(this, "Card HTTP 请求失败: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                    MeloToastHelper.show(this, "Card HTTP 请求失败: " + e.getMessage(), Toast.LENGTH_LONG);
                 });
             } catch (Exception e) {
                 mainHandler.post(() -> {
@@ -645,7 +646,7 @@ public class TextDemoActivity extends AppCompatActivity {
                     setBusy(false);
                     updateDebugInfo();
                     addLog("Card HTTP error: " + e.getMessage());
-                    Toast.makeText(this, "Card HTTP 请求失败", Toast.LENGTH_SHORT).show();
+                    MeloToastHelper.show(this, "Card HTTP 请求失败", Toast.LENGTH_SHORT);
                 });
             }
         });
@@ -677,7 +678,7 @@ public class TextDemoActivity extends AppCompatActivity {
                 setBusy(false);
                 updateDebugInfo();
                 addLog("Validation failed: " + validation.getErrors().size() + " error(s)");
-                Toast.makeText(this, "A2UI JSON 验证失败", Toast.LENGTH_SHORT).show();
+                MeloToastHelper.show(this, "A2UI JSON 验证失败", Toast.LENGTH_SHORT);
                 return;
             }
 
@@ -706,18 +707,18 @@ public class TextDemoActivity extends AppCompatActivity {
             setBusy(false);
             updateDebugInfo();
             addLog("Render failed: " + e.getMessage());
-            Toast.makeText(this, "渲染失败: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            MeloToastHelper.show(this, "渲染失败: " + e.getMessage(), Toast.LENGTH_SHORT);
         }
     }
 
     private void handleLlmGenerate(String input) {
         String url = etLlmUrl.getText().toString().trim();
         if (url.isEmpty()) {
-            Toast.makeText(this, "请输入 LLM endpoint URL", Toast.LENGTH_SHORT).show();
+            MeloToastHelper.show(this, "请输入 LLM endpoint URL", Toast.LENGTH_SHORT);
             return;
         }
         if (input.isEmpty()) {
-            Toast.makeText(this, "请输入文本", Toast.LENGTH_SHORT).show();
+            MeloToastHelper.show(this, "请输入文本", Toast.LENGTH_SHORT);
             return;
         }
 
@@ -767,7 +768,7 @@ public class TextDemoActivity extends AppCompatActivity {
                         setBusy(false);
                         updateDebugInfo();
                         addLog("LLM validation failed: " + validation.getErrors().size() + " error(s)");
-                        Toast.makeText(this, "LLM 输出验证失败，请查看 Debug 面板", Toast.LENGTH_LONG).show();
+                        MeloToastHelper.show(this, "LLM 输出验证失败，请查看 Debug 面板", Toast.LENGTH_LONG);
                         return;
                     }
 
@@ -798,7 +799,7 @@ public class TextDemoActivity extends AppCompatActivity {
                     setBusy(false);
                     updateDebugInfo();
                     addLog("LLM error: " + e.getMessage());
-                    Toast.makeText(this, "LLM 请求失败: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                    MeloToastHelper.show(this, "LLM 请求失败: " + e.getMessage(), Toast.LENGTH_LONG);
                 });
             } catch (Exception e) {
                 mainHandler.post(() -> {
@@ -809,7 +810,7 @@ public class TextDemoActivity extends AppCompatActivity {
                     setBusy(false);
                     updateDebugInfo();
                     addLog("LLM error: " + e.getMessage());
-                    Toast.makeText(this, "LLM 请求失败", Toast.LENGTH_SHORT).show();
+                    MeloToastHelper.show(this, "LLM 请求失败", Toast.LENGTH_SHORT);
                 });
             }
         });
@@ -865,7 +866,7 @@ public class TextDemoActivity extends AppCompatActivity {
         setBusy(false);
         addLog("endTextStream - render complete");
         updateDebugInfo();
-        Toast.makeText(this, "UI 渲染完成", Toast.LENGTH_SHORT).show();
+        MeloToastHelper.show(this, "UI 渲染完成", Toast.LENGTH_SHORT);
     }
 
     private void streamToSdk(String[] messages) {
@@ -886,8 +887,8 @@ public class TextDemoActivity extends AppCompatActivity {
                     setBusy(false);
                     updateDebugInfo();
                     addLog("Streaming complete");
-                    Toast.makeText(TextDemoActivity.this,
-                            "UI 渲染完成 (streaming)", Toast.LENGTH_SHORT).show();
+                    MeloToastHelper.show(TextDemoActivity.this,
+                            "UI 渲染完成 (streaming)", Toast.LENGTH_SHORT);
                 });
             }
 
@@ -996,8 +997,8 @@ public class TextDemoActivity extends AppCompatActivity {
                         tvValidationBadge.setTextColor(0xFFCC0000);
                         addLog("SSE post-stream validation failed: "
                                 + vr.getErrors().size() + " error(s)");
-                        Toast.makeText(TextDemoActivity.this,
-                                "SSE 输出验证失败，请查看 Debug 面板", Toast.LENGTH_LONG).show();
+                        MeloToastHelper.show(TextDemoActivity.this,
+                                "SSE 输出验证失败，请查看 Debug 面板", Toast.LENGTH_LONG);
                     } else {
                         tvValidationBadge.setText("PASS");
                         tvValidationBadge.setTextColor(0xFF008800);
@@ -1031,8 +1032,8 @@ public class TextDemoActivity extends AppCompatActivity {
                         tvValidationBadge.setText("ERROR");
                         tvValidationBadge.setTextColor(0xFFCC0000);
                         addLog("SSE error: " + lastError);
-                        Toast.makeText(TextDemoActivity.this,
-                                "SSE 错误: " + lastError, Toast.LENGTH_LONG).show();
+                        MeloToastHelper.show(TextDemoActivity.this,
+                                "SSE 错误: " + lastError, Toast.LENGTH_LONG);
                     }
                     setBusy(false);
                     updateDebugInfo();

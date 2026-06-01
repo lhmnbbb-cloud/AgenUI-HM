@@ -69,13 +69,25 @@
         {
           "id": "submit-btn",
           "component": "Button",
-          "text": "提交",
-          "variant": "primary",
+          "child": "submit-btn-label",
+          "variant": "mluiButtonPrimary",
+          "styles": {
+            "padding": "12px 32px"
+          },
           "action": {
             "functionCall": {
               "call": "toast",
               "args": { "value": "提交成功！" }
             }
+          }
+        },
+        {
+          "id": "submit-btn-label",
+          "component": "Text",
+          "text": "提交",
+          "variant": "mluiLabel",
+          "styles": {
+            "text-align": "center"
           }
         }
       ]

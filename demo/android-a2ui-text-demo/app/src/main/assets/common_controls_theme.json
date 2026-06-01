@@ -72,6 +72,53 @@
           }
         }
       }
+    },
+    "Button": {
+      "variant": {
+        "enum": {
+          "mluiButtonPrimary": {
+            "styles": {
+              "melo-button-background": "mlui_button_filled_bg_color",
+              "melo-button-radius": "24px",
+              "melo-button-text-color": "mlui_btn_filled_text_color",
+              "melo-button-text-variant": "mluiLabel",
+              "background-color": "#007AFF",
+              "border-radius": "24px"
+            }
+          },
+          "mluiButtonSecondary": {
+            "styles": {
+              "melo-button-background": "mlui_button_grey_bg_color",
+              "melo-button-radius": "24px",
+              "melo-button-text-color": "mlui_btn_grey_text_color",
+              "melo-button-text-variant": "mluiLabel",
+              "background-color": "#E8E8E8",
+              "border-radius": "24px"
+            }
+          },
+          "mluiButtonDanger": {
+            "styles": {
+              "melo-button-background": "mlui_button_warning_bg_color",
+              "melo-button-radius": "24px",
+              "melo-button-text-color": "mlui_btn_warning_text_color",
+              "melo-button-text-variant": "mluiLabel",
+              "background-color": "#E54545",
+              "border-radius": "24px"
+            }
+          },
+          "mluiButtonGhost": {
+            "styles": {
+              "melo-button-background": "#00000000",
+              "melo-button-disabled-background": "#00000000",
+              "melo-button-radius": "24px",
+              "melo-button-text-color": "mlui_btn_plain_text_color",
+              "melo-button-text-variant": "mluiLabel",
+              "background-color": "#00000000",
+              "border-radius": "24px"
+            }
+          }
+        }
+      }
     }
   }
 }

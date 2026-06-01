@@ -70,6 +70,138 @@ public class CommonControlsThemeTest {
     }
 
     @Test
+    public void themeJson_declaresFourButtonVariants() throws Exception {
+        JSONObject root = new JSONObject(readThemeJson());
+        JSONObject button = root.getJSONObject("default")
+                .getJSONObject("Button")
+                .getJSONObject("variant")
+                .getJSONObject("enum");
+        for (String v : new String[]{
+                "mluiButtonPrimary", "mluiButtonSecondary",
+                "mluiButtonDanger", "mluiButtonGhost"}) {
+            assertNotNull("Button variant missing: " + v, button.optJSONObject(v));
+        }
+    }
+
+    @Test
+    public void themeJson_buttonVariantsCarryAppearanceKeys() throws Exception {
+        // Each variant must declare melo-button-background AND melo-button-radius
+        // so MeloButtonComponent has something to install. ghost may use a
+        // transparent hex, but the key must still be present so the component's
+        // appearance pipeline runs (otherwise StyleHelper.applyBackground might
+        // leave it un-styled).
+        JSONObject root = new JSONObject(readThemeJson());
+        JSONObject button = root.getJSONObject("default")
+                .getJSONObject("Button")
+                .getJSONObject("variant")
+                .getJSONObject("enum");
+        for (String v : new String[]{
+                "mluiButtonPrimary", "mluiButtonSecondary",
+                "mluiButtonDanger", "mluiButtonGhost"}) {
+            JSONObject styles = button.getJSONObject(v).getJSONObject("styles");
+            assertTrue(v + " must declare melo-button-background",
+                    styles.has("melo-button-background"));
+            assertTrue(v + " must declare melo-button-radius",
+                    styles.has("melo-button-radius"));
+        }
+    }
+
+    @Test
+    public void themeJson_visibleButtonVariantsKeepFallbackBackgroundColor() throws Exception {
+        // When the AAR is absent (color resource resolution fails), the
+        // background-color fallback must remain visible for the three "solid"
+        // variants. ghost is allowed transparent (#00000000) by design — it's
+        // an outline/link-style button.
+        JSONObject root = new JSONObject(readThemeJson());
+        JSONObject button = root.getJSONObject("default")
+                .getJSONObject("Button")
+                .getJSONObject("variant")
+                .getJSONObject("enum");
+        for (String v : new String[]{
+                "mluiButtonPrimary", "mluiButtonSecondary", "mluiButtonDanger"}) {
+            JSONObject styles = button.getJSONObject(v).getJSONObject("styles");
+            String bg = styles.optString("background-color");
+            assertFalse(v + " fallback background-color must not be transparent",
+                    bg.isEmpty() || bg.equalsIgnoreCase("#00000000")
+                            || bg.equalsIgnoreCase("transparent"));
+        }
+    }
+
+    @Test
+    public void themeJson_buttonVariantsDeclareTextColorKey() throws Exception {
+        // Each variant must declare melo-button-text-color so MeloButtonComponent
+        // can inject the AAR's text-color CSL (enabled × pressed × disabled ×
+        // day/night) into child TextViews. Without it, the child Text is stuck
+        // with a single flat color that doesn't respond to pressed/disabled state.
+        JSONObject root = new JSONObject(readThemeJson());
+        JSONObject button = root.getJSONObject("default")
+                .getJSONObject("Button")
+                .getJSONObject("variant")
+                .getJSONObject("enum");
+        for (String v : new String[]{
+                "mluiButtonPrimary", "mluiButtonSecondary",
+                "mluiButtonDanger", "mluiButtonGhost"}) {
+            JSONObject styles = button.getJSONObject(v).getJSONObject("styles");
+            assertTrue(v + " must declare melo-button-text-color",
+                    styles.has("melo-button-text-color"));
+        }
+    }
+
+    @Test
+    public void themeJson_buttonVariantsUseModernSelectorResources() throws Exception {
+        // AAR ships two parallel namespaces:
+        //   - mlui_button_*_bg_color  →  res/color/ selector (base CSL with
+        //                                 enabled/disabled × day/night), the
+        //                                 proper Button selector.
+        //   - mlui_btn_*_bg_color     →  values flat color with only _day/_night,
+        //                                 no base CSL — legacy, requires
+        //                                 buildDayNightDrawable() fallback.
+        // The theme must point solid Button variants at the modern selector so
+        // disabled state and day/night switching come from the AAR directly.
+        JSONObject root = new JSONObject(readThemeJson());
+        JSONObject button = root.getJSONObject("default")
+                .getJSONObject("Button")
+                .getJSONObject("variant")
+                .getJSONObject("enum");
+
+        assertEquals("primary must use mlui_button_filled_bg_color selector",
+                "mlui_button_filled_bg_color",
+                button.getJSONObject("mluiButtonPrimary").getJSONObject("styles")
+                        .optString("melo-button-background"));
+        assertEquals("secondary must use mlui_button_grey_bg_color selector",
+                "mlui_button_grey_bg_color",
+                button.getJSONObject("mluiButtonSecondary").getJSONObject("styles")
+                        .optString("melo-button-background"));
+        assertEquals("danger must use mlui_button_warning_bg_color selector",
+                "mlui_button_warning_bg_color",
+                button.getJSONObject("mluiButtonDanger").getJSONObject("styles")
+                        .optString("melo-button-background"));
+
+        // Reject the legacy _btn_*_bg_color namespace anywhere in the Button body.
+        // It would route through buildDayNightDrawable() and silently lose disabled
+        // state. Note: mlui_btn_*_text_color is a different (AAR-only) family —
+        // there is no "mlui_button_*_text_color" alternative, so we don't ban
+        // _btn_ wholesale, only the bg_color variant.
+        String body = root.getJSONObject("default")
+                .getJSONObject("Button").toString().toLowerCase();
+        assertFalse("Button variants must not reference legacy mlui_btn_*_bg_color "
+                        + "(use the selector-based mlui_button_*_bg_color instead)",
+                body.matches("(?s).*mlui_btn_[a-z_]*_bg_color.*"));
+    }
+
+    @Test
+    public void themeJson_buttonVariantsDoNotPolluteCoreKeys() throws Exception {
+        // Demo-private keys must not leak company-private style names like
+        // gua_*, melo_text_appearance_button, etc., into the Button enum body
+        // (we tolerate only the four melo-button-* keys plus standard A2UI).
+        JSONObject root = new JSONObject(readThemeJson());
+        String body = root.getJSONObject("default")
+                .getJSONObject("Button").toString().toLowerCase();
+        assertFalse("Button variants must not reference gua* resources",
+                body.contains("gua"));
+    }
+
+    @Test
     public void themeJson_cardVariantsKeepVisibleFallbackDecoration() throws Exception {
         // When the proprietary AAR is absent, MeloCardComponent can't resolve
         // melo-card-background and the C++ spec-merged background-color /

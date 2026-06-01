@@ -8,6 +8,7 @@ import android.widget.Toast;
 import com.amap.agenui.function.FunctionConfig;
 import com.amap.agenui.function.FunctionResult;
 import com.amap.agenui.function.IFunction;
+import com.amap.agenuidemo.commonui.MeloToastHelper;
 
 import org.json.JSONObject;
 
@@ -25,7 +26,7 @@ public class ToastFunction implements IFunction {
         try {
             JSONObject json = new JSONObject(jsonString);
             String toastString = json.optString("value", json.optString("message", "Toast triggered"));
-            handler.post(() -> Toast.makeText(context, toastString, Toast.LENGTH_LONG).show());
+            handler.post(() -> MeloToastHelper.show(context, toastString, Toast.LENGTH_LONG));
             return FunctionResult.createSuccess(null);
         } catch (Exception e) {
             return FunctionResult.createError("ToastFunction error: " + e.getMessage());
